@@ -1,0 +1,5 @@
+grip: PASS (exit 0)
+planes: behavior · governed modules: 2 · ungoverned: 0
+
+intentional changes:
+  ~ module src/checkout's boundary placeOrder was re-pinned on purpose — the snapshot now records new observable behavior.

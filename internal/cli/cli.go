@@ -17,6 +17,7 @@ import (
 	"github.com/artembatutin/grip/internal/derive/typescript"
 	"github.com/artembatutin/grip/internal/plane"
 	"github.com/artembatutin/grip/internal/plane/architecture"
+	"github.com/artembatutin/grip/internal/plane/behavior"
 	"github.com/artembatutin/grip/internal/plane/testrigor"
 )
 
@@ -51,6 +52,7 @@ func BuildRegistry() *plane.Registry {
 	reg := plane.NewRegistry()
 	reg.Register(architecture.New(BuildOrchestrator()))
 	reg.Register(testrigor.New(nil)) // nil → default filesystem mutation cache
+	reg.Register(behavior.New())     // M2 snapshot+baseline plane
 	return reg
 }
 
@@ -105,6 +107,7 @@ commands:
   modules   list governed and ungoverned modules
   init      scaffold .grip.yaml and draft grip.yaml manifests
   ratify    accept current derived state as the baseline
+            (ratify behavior <module> re-pins that module's behavior snapshots)
   version   print grip and resolved analyzer versions
 
 run "grip <command> --help" for command flags.

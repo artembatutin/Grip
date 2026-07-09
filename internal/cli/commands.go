@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/artembatutin/grip/internal/config"
 	"github.com/artembatutin/grip/internal/diff"
@@ -16,6 +17,7 @@ import (
 	"github.com/artembatutin/grip/internal/manifest"
 	"github.com/artembatutin/grip/internal/plane"
 	"github.com/artembatutin/grip/internal/plane/architecture"
+	"github.com/artembatutin/grip/internal/plane/behavior"
 	"github.com/artembatutin/grip/internal/ratify"
 	"github.com/artembatutin/grip/internal/report"
 )
@@ -254,6 +256,11 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 }
 
 func (a *App) cmdRatify(ctx context.Context, args []string) int {
+	// `grip ratify behavior <module>` re-pins the behavior plane's snapshots for a
+	// module (M2); the bare `grip ratify` accepts the architecture baseline (M0).
+	if len(args) >= 1 && args[0] == "behavior" {
+		return a.cmdRatifyBehavior(ctx, args[1:])
+	}
 	fs := flag.NewFlagSet("ratify", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
 	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
@@ -289,6 +296,101 @@ func (a *App) cmdRatify(ctx context.Context, args []string) int {
 		return gate.ExitUsage
 	}
 	fmt.Fprintf(a.Stdout, "grip: baseline written to %s (gate: %s)\n", baselineRelPath, out.Decision)
+	return exitOK
+}
+
+// cmdRatifyBehavior re-pins the behavior plane's boundary snapshots for one
+// module (M2, GR-BEH-1). It captures the module's current observable behavior and
+// writes the normalized snapshot files under <module>/.grip/behavior/; that
+// committed edit IS the recorded design decision the gate later reads as the
+// ratification. Nondeterministic boundaries are refused (fail-closed): an unstable
+// snapshot must never be pinned.
+func (a *App) cmdRatifyBehavior(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("ratify behavior", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	moduleID := fs.Arg(0)
+	if moduleID == "" {
+		fmt.Fprintln(a.Stderr, "usage: grip ratify behavior <module>")
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	disc, err := manifest.Discover(root, cfg.LanguageRoots())
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	target := disc.GovernedModule(moduleID)
+	if target == nil {
+		fmt.Fprintf(a.Stderr, "grip ratify behavior: %q is not a governed module (governed: %s)\n", moduleID, strings.Join(disc.GovernedIDs(), ", "))
+		return gate.ExitUsage
+	}
+
+	refs := make([]plane.ModuleRef, 0, len(disc.Governed))
+	for _, m := range disc.Governed {
+		refs = append(refs, plane.ModuleRef{ID: m.ID, Path: m.Dir, Language: m.Language})
+	}
+	svc := plane.DeriveServices{
+		Commit:    os.Getenv("GRIP_COMMIT"),
+		RepoRoot:  root,
+		Tools:     toolRunner(root, *analysisDir),
+		ModuleOf:  disc.ModuleForFile,
+		FilesOf:   disc.FilesOf,
+		Languages: cfg.LanguageSpecs(),
+	}
+	derived, err := behavior.New().Derive(ctx, refs, svc)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip ratify behavior: %v\n", err)
+		return gate.ExitFailClosed
+	}
+
+	// Pin the module's declared boundaries (behavior.pin); with none declared,
+	// accept all observed boundaries as the current reality.
+	var filter map[string]bool
+	if in, err := behavior.New().ParseIntent(target.Manifest.Section(behavior.PlaneID), plane.ModuleRef{ID: moduleID}); err == nil {
+		if bi, ok := in.(behavior.Intent); ok && len(bi.Pin) > 0 {
+			filter = map[string]bool{}
+			for _, b := range bi.Pin {
+				filter[b] = true
+			}
+		}
+	}
+
+	files := behavior.SnapshotsFor(derived, moduleID, filter)
+	if len(files) == 0 {
+		fmt.Fprintf(a.Stdout, "grip: no observable boundaries captured for %s — nothing to pin.\n", moduleID)
+		return exitOK
+	}
+	wrote, reduced := 0, 0
+	for _, f := range files {
+		if f.Reduced {
+			reduced++
+			fmt.Fprintf(a.Stderr, "grip: refusing to pin nondeterministic boundary %s (stabilize it first)\n", f.Boundary)
+			continue
+		}
+		abs := filepath.Join(root, filepath.FromSlash(f.Path))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitUsage
+		}
+		if err := os.WriteFile(abs, []byte(f.Content), 0o644); err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitUsage
+		}
+		wrote++
+		fmt.Fprintf(a.Stdout, "pinned %s\n", f.Path)
+	}
+	fmt.Fprintf(a.Stdout, "grip: re-pinned %d boundary snapshot(s) for %s.\n", wrote, moduleID)
+	if reduced > 0 {
+		// Fail-closed: the human asked to pin a boundary we cannot capture stably.
+		return gate.ExitFailClosed
+	}
 	return exitOK
 }
 

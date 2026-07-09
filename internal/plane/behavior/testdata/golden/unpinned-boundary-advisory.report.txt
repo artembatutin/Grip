@@ -1,0 +1,5 @@
+grip: PASS (exit 0)
+planes: behavior · governed modules: 2 · ungoverned: 0
+
+advisories (1):
+  • [behavior.unpinned-boundary] src/checkout (src/checkout/index.ts:8) — module src/checkout's boundary total is marked for pinning but has no snapshot yet — run `grip ratify behavior src/checkout` to record its current behavior as the baseline.
