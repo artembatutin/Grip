@@ -1,0 +1,17 @@
+# Planning & requirements docs (local only)
+/plan/
+/reqs/
+
+# macOS
+.DS_Store
+
+# Go
+/bin/
+*.exe
+*.out
+*.test
+vendor/
+
+# Editor / IDE
+.idea/
+.vscode/
