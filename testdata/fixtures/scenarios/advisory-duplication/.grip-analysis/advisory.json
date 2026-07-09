@@ -1,0 +1,11 @@
+{
+  "clones": [
+    {
+      "lines": 14,
+      "occurrences": [
+        { "file": "src/domain/index.ts", "line": 2 },
+        { "file": "src/application/index.ts", "line": 4 }
+      ]
+    }
+  ]
+}

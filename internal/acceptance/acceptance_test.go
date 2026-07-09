@@ -99,6 +99,36 @@ func TestAcceptanceMatrix(t *testing.T) {
 			wantContains: []string{"module app/Infrastructure depends on app/Domain"},
 		},
 
+		// --- Tier B advisories (M4): surface, non-blocking, unless promoted ---
+		{
+			// A cross-module clone surfaces as an advisory but the gate still PASSES:
+			// Tier B is reported, not gating (plan/07 Part A exit criterion).
+			name:         "advisory-duplication-surfaces-without-blocking",
+			overlay:      "advisory-duplication",
+			wantDecision: "pass",
+			wantExit:     0,
+			wantRule:     "arch.duplication",
+			wantContains: []string{"share 14 lines of duplicated code", "advisories ("},
+		},
+		{
+			// The SAME clone, with .grip.yaml promoting arch.duplication to block,
+			// now gates: a promoted advisory behaves like a Tier A rule (M0.6).
+			name:         "advisory-duplication-promoted-blocks",
+			overlay:      "advisory-duplication-promoted",
+			wantDecision: "block",
+			wantExit:     1,
+			wantRule:     "arch.duplication",
+		},
+		{
+			// Negative near-miss: a clone confined to one module is NOT a
+			// cross-module concern, so no advisory fires and the gate passes clean.
+			name:         "advisory-duplication-near-miss-single-module",
+			overlay:      "advisory-duplication-near-miss",
+			wantDecision: "pass",
+			wantExit:     0,
+			wantNotRule:  "arch.duplication",
+		},
+
 		// --- good diffs: each MUST pass ---
 		{
 			name:         "good-internal-refactor",
