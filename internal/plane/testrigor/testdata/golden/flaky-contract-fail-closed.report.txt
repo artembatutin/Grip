@@ -1,0 +1,5 @@
+grip: BLOCKED (exit 2)
+planes: test-rigor · governed modules: 2 · ungoverned: 0
+
+fail-closed (1):
+  ✖ cannot verify module src/checkout's boundary contract because its contract test checkout.spec.ts::places order is flaky (confidence reduced) — quarantine and stabilize it so its mutation signal is trustworthy.

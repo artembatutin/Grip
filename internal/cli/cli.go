@@ -17,6 +17,7 @@ import (
 	"github.com/artembatutin/grip/internal/derive/typescript"
 	"github.com/artembatutin/grip/internal/plane"
 	"github.com/artembatutin/grip/internal/plane/architecture"
+	"github.com/artembatutin/grip/internal/plane/testrigor"
 )
 
 // Version is Grip's release version, printed by `grip version` and stamped into
@@ -44,10 +45,12 @@ func BuildOrchestrator() *derive.Orchestrator {
 
 // BuildRegistry is the single wiring point that knows the concrete planes and
 // language derivers. Everything else reaches planes only through the registry —
-// this is what the engine-core-purity test protects.
+// this is what the engine-core-purity test protects. Adding the M1 test-rigor
+// plane is exactly one line here plus its package: no engine change (plan/04).
 func BuildRegistry() *plane.Registry {
 	reg := plane.NewRegistry()
 	reg.Register(architecture.New(BuildOrchestrator()))
+	reg.Register(testrigor.New(nil)) // nil → default filesystem mutation cache
 	return reg
 }
 

@@ -1,0 +1,5 @@
+grip: BLOCKED (exit 1)
+planes: test-rigor · governed modules: 2 · ungoverned: 0
+
+blocking violations (1):
+  ✖ [test.deleted-required-test] src/checkout — module src/checkout no longer has a test for required behavior "checkout" (covered by checkout.spec.ts::rejects empty cart at baseline) — restore the test or drop "checkout" from the module's requiredBehaviors.
