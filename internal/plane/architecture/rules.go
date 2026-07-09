@@ -8,16 +8,25 @@ import (
 )
 
 // Model is the architecture plane's Derived value: the Common Graph IR, the
-// repo's layer order, and the set of ungoverned module ids. Bundling these here
-// (captured in Derive) keeps Reconcile pure — it needs no config and no I/O.
+// repo's layer order, the set of ungoverned module ids, and the Tier B advisory
+// signals. Bundling these here (captured in Derive) keeps Reconcile pure — it
+// needs no config and no I/O.
+//
+// Advisory is deliberately a sibling of Graph, NOT reachable through IRGraph(): the
+// advisory pass (and, in M4, the Tier C judgment pass) must never enter the IR or
+// its hash. IRGraph() returns only Graph, so the deterministic gate path is
+// hermetically isolated from advisory output (NFR-1, principle 3).
 type Model struct {
 	Graph      *ir.Graph
 	LayerOrder []string
 	Ungoverned []string
+	Advisory   Signals
 }
 
 // IRGraph exposes the Common Graph IR so the engine can surface it for
 // diff/report/version without importing this plane (satisfies gate.GraphProvider).
+// It returns ONLY the graph — never the advisory or judgment signals — so nothing
+// derived from a heuristic or an LLM can reach the IR hash.
 func (m *Model) IRGraph() *ir.Graph { return m.Graph }
 
 // reconcile is the pure heart of the plane: (declared intents, derived model) →
@@ -198,6 +207,12 @@ func reconcile(intents map[string]Intent, m *Model) []plane.Violation {
 			Message:    msgCannotVerify(owner, "the dependency boundary", c.Scope, c.Level, c.Reason),
 		})
 	}
+
+	// --- Tier B advisories (M4): deterministic, non-blocking by default. Derived
+	// from the wrapped advisory analyzers into m.Advisory in Derive; turned into
+	// reported-but-non-gating violations here. They share this pure step but never
+	// the IR — m.Advisory is not part of the graph.
+	vs = append(vs, advisoryViolations(intents, m.Advisory)...)
 
 	return vs
 }

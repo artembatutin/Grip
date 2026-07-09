@@ -55,6 +55,11 @@ func (p *Plane) Derive(ctx context.Context, mods []plane.ModuleRef, svc plane.De
 		Graph:      g,
 		LayerOrder: append([]string(nil), svc.Layers...),
 		Ungoverned: append([]string(nil), svc.Ungoverned...),
+		// Tier B advisory pass (M4). Best-effort and non-blocking: it wraps extra
+		// analyzers via the same ToolRunner seam and its output lives beside the
+		// graph, never inside it. A missing advisory tool yields no advisories and
+		// never fails the gate.
+		Advisory: deriveAdvisory(ctx, svc),
 	}, nil
 }
 
