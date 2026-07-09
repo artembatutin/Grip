@@ -83,12 +83,23 @@ func (p *Plane) Rules() []plane.RuleSpec {
 		{ID: RuleDirectionViolation, Tier: plane.TierA, Summary: "a dependency pointing outward against the declared layer order (FR-5)"},
 		{ID: RuleInternalReach, Tier: plane.TierA, Summary: "a reach into another module's non-facade internals (FR-8)"},
 		{ID: RuleStaleDeclaration, Tier: plane.TierA, Summary: "a facade or allow entry with no backing derived reality (FR-6)"},
-		// Tier B advisories: declared so .grip.yaml promotions validate against
-		// real ids, implemented in M4.
-		{ID: RuleDuplication, Tier: plane.TierB, Promotable: true, Summary: "duplicated structure across modules (advisory, M4)"},
-		{ID: RuleCoChange, Tier: plane.TierB, Promotable: true, Summary: "modules that always change together (advisory, M4)"},
-		{ID: RuleMessageChains, Tier: plane.TierB, Promotable: true, Summary: "long message chains across boundaries (advisory, M4)"},
-		{ID: RuleSpeculativeGenerality, Tier: plane.TierB, Promotable: true, Summary: "unused speculative abstraction (advisory, M4)"},
+		// Tier B advisories (M4): deterministic, non-blocking by default, each
+		// promotable to Tier A via .grip.yaml policy.promote.
+		{ID: RuleDuplication, Tier: plane.TierB, Promotable: true, Summary: "duplicated structure across modules"},
+		{ID: RuleCoChange, Tier: plane.TierB, Promotable: true, Summary: "modules that always change together without a declared dependency"},
+		{ID: RuleMessageChains, Tier: plane.TierB, Promotable: true, Summary: "long message chains reaching across module boundaries"},
+		{ID: RuleSpeculativeGenerality, Tier: plane.TierB, Promotable: true, Summary: "an abstraction with a single implementor (speculative generality)"},
+		{ID: RuleMiddleMan, Tier: plane.TierB, Promotable: true, Summary: "a module that mostly forwards calls (middle man / excessive delegation)"},
+		{ID: RuleComplexity, Tier: plane.TierB, Promotable: true, Summary: "a function whose cyclomatic complexity exceeds the threshold"},
+
+		// Tier C judgment-assisted rules (M4): advisory ONLY. Promotable is false
+		// and MUST stay false — config validation additionally refuses to promote
+		// any Tier C rule, and gate.decide excludes Tier C from the decision, so an
+		// LLM signal can never block a merge (principle 3, GR-X-6).
+		{ID: RuleUnclearName, Tier: plane.TierC, Promotable: false, Summary: "a name a reviewer may find unclear (judgment-assisted, never blocks)"},
+		{ID: RuleDataClump, Tier: plane.TierC, Promotable: false, Summary: "fields that recur together and may want their own type (judgment-assisted, never blocks)"},
+		{ID: RulePrimitiveObsession, Tier: plane.TierC, Promotable: false, Summary: "a primitive that may deserve a domain type (judgment-assisted, never blocks)"},
+		{ID: RuleFeatureEnvy, Tier: plane.TierC, Promotable: false, Summary: "a method that may belong to another module (judgment-assisted, never blocks)"},
 	}
 }
 

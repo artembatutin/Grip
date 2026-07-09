@@ -149,6 +149,14 @@ func decide(out *Outcome, promoted map[string]bool) {
 	failClosed := len(out.FailClosed) > 0
 	hardBlock := false
 	for _, v := range out.Violations {
+		if v.Tier == plane.TierC {
+			// Tier C is judgment-assisted (the only place an LLM enters Grip) and
+			// is structurally excluded from the gate decision: it can neither block
+			// nor fail-closed, regardless of any promotion (principle 3, NFR-1). It
+			// is reported, never gated. Config also refuses to promote a Tier C rule
+			// (defence in depth), but this skip is the load-bearing guarantee.
+			continue
+		}
 		if v.Kind == plane.KindCannotVerify {
 			failClosed = true
 			continue

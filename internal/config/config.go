@@ -170,6 +170,14 @@ func (c *Config) validate(reg *plane.Registry) error {
 		if !ok {
 			return fmt.Errorf("%s: policy.promote names unknown rule %q", Filename, pr.Rule)
 		}
+		// Tier C is judgment-assisted (LLM) and must never gate a merge (principle
+		// 3). Refuse to promote it here regardless of the rule's Promotable flag, so
+		// a plane that mistakenly marks a Tier C rule promotable still cannot make an
+		// LLM signal blocking. The gate excludes Tier C structurally too; this is the
+		// authoring-time guard that reports the mistake clearly.
+		if spec.Tier == plane.TierC {
+			return fmt.Errorf("%s: rule %q is Tier C (judgment-assisted) and cannot be promoted to blocking", Filename, pr.Rule)
+		}
 		if !spec.Promotable {
 			return fmt.Errorf("%s: rule %q is not promotable", Filename, pr.Rule)
 		}

@@ -17,12 +17,28 @@ const (
 	RuleInternalReach      = "arch.internal-reach"
 	RuleStaleDeclaration   = "arch.stale-declaration"
 
-	// Tier B advisories are declared (so promotion can validate against real
-	// ids) but not implemented in M0; M4 fills them in.
+	// Tier B advisories: deterministic, reported, non-blocking by default, but a
+	// repo may promote any of them to Tier A via .grip.yaml policy.promote (M0.6).
+	// duplication/co-change/message-chains/speculative-generality were declared in
+	// M0 so promotion could validate against real ids; middle-man and complexity
+	// are added in M4. All are implemented in M4 from wrapped analyzers.
 	RuleDuplication           = "arch.duplication"
 	RuleCoChange              = "arch.co-change"
 	RuleMessageChains         = "arch.message-chains"
 	RuleSpeculativeGenerality = "arch.speculative-generality"
+	RuleMiddleMan             = "arch.middle-man"
+	RuleComplexity            = "arch.complexity"
+
+	// Tier C judgment-assisted rules (M4). These are the ONLY rules that may
+	// consult an LLM. They emit ONLY Tier C violations, are marked non-blocking in
+	// every report, and can NEVER change the gate decision: the engine excludes
+	// Tier C from the decision structurally (gate.decide) and config refuses to
+	// promote a Tier C rule. Their derivation is quarantined in Derive so no LLM
+	// output ever enters the IR, the IR hash, or any deterministic path (NFR-1).
+	RuleUnclearName        = "arch.unclear-name"
+	RuleDataClump          = "arch.data-clump"
+	RulePrimitiveObsession = "arch.primitive-obsession"
+	RuleFeatureEnvy        = "arch.feature-envy"
 )
 
 // Every user-facing string is one plain sentence: rule, what, and remedy
