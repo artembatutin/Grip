@@ -18,6 +18,7 @@ import (
 	"github.com/artembatutin/grip/internal/plane"
 	"github.com/artembatutin/grip/internal/plane/architecture"
 	"github.com/artembatutin/grip/internal/plane/behavior"
+	"github.com/artembatutin/grip/internal/plane/contract"
 	"github.com/artembatutin/grip/internal/ratify"
 	"github.com/artembatutin/grip/internal/report"
 )
@@ -257,9 +258,14 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 
 func (a *App) cmdRatify(ctx context.Context, args []string) int {
 	// `grip ratify behavior <module>` re-pins the behavior plane's snapshots for a
-	// module (M2); the bare `grip ratify` accepts the architecture baseline (M0).
+	// module (M2); `grip ratify contract <module>` adopts the contract plane's
+	// current wire contracts (M3); the bare `grip ratify` accepts the architecture
+	// baseline (M0).
 	if len(args) >= 1 && args[0] == "behavior" {
 		return a.cmdRatifyBehavior(ctx, args[1:])
+	}
+	if len(args) >= 1 && args[0] == "contract" {
+		return a.cmdRatifyContract(ctx, args[1:])
 	}
 	fs := flag.NewFlagSet("ratify", flag.ContinueOnError)
 	fs.SetOutput(a.Stderr)
@@ -389,6 +395,104 @@ func (a *App) cmdRatifyBehavior(ctx context.Context, args []string) int {
 	fmt.Fprintf(a.Stdout, "grip: re-pinned %d boundary snapshot(s) for %s.\n", wrote, moduleID)
 	if reduced > 0 {
 		// Fail-closed: the human asked to pin a boundary we cannot capture stably.
+		return gate.ExitFailClosed
+	}
+	return exitOK
+}
+
+// cmdRatifyContract adopts a module's currently-derived wire contracts as the
+// declared baseline (M3, GR-CON-1; reuses generate-then-ratify, M0.10). It derives
+// the module's current api/event/db contracts and writes the canonical baseline
+// artifacts under <module>/.grip/contract/; that committed edit IS the recorded
+// design decision a later gate reads as the ratification. A kind whose current
+// shape could not be derived is refused (fail-closed): never adopt a contract Grip
+// cannot see.
+func (a *App) cmdRatifyContract(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("ratify contract", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	moduleID := fs.Arg(0)
+	if moduleID == "" {
+		fmt.Fprintln(a.Stderr, "usage: grip ratify contract <module>")
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	disc, err := manifest.Discover(root, cfg.LanguageRoots())
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	target := disc.GovernedModule(moduleID)
+	if target == nil {
+		fmt.Fprintf(a.Stderr, "grip ratify contract: %q is not a governed module (governed: %s)\n", moduleID, strings.Join(disc.GovernedIDs(), ", "))
+		return gate.ExitUsage
+	}
+
+	refs := make([]plane.ModuleRef, 0, len(disc.Governed))
+	for _, m := range disc.Governed {
+		refs = append(refs, plane.ModuleRef{ID: m.ID, Path: m.Dir, Language: m.Language})
+	}
+	svc := plane.DeriveServices{
+		Commit:    os.Getenv("GRIP_COMMIT"),
+		RepoRoot:  root,
+		Tools:     toolRunner(root, *analysisDir),
+		ModuleOf:  disc.ModuleForFile,
+		FilesOf:   disc.FilesOf,
+		Languages: cfg.LanguageSpecs(),
+	}
+	derived, err := contract.New().Derive(ctx, refs, svc)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip ratify contract: %v\n", err)
+		return gate.ExitFailClosed
+	}
+
+	// Adopt the module's governed kinds (contract.<kind>); with none parseable,
+	// accept every kind whose contract could be derived.
+	var filter map[string]bool
+	if in, err := contract.New().ParseIntent(target.Manifest.Section(contract.PlaneID), plane.ModuleRef{ID: moduleID}); err == nil {
+		if ci, ok := in.(contract.Intent); ok {
+			if kinds := ci.GovernedKinds(); len(kinds) > 0 {
+				filter = map[string]bool{}
+				for _, k := range kinds {
+					filter[k] = true
+				}
+			}
+		}
+	}
+
+	files := contract.BaselinesFor(derived, moduleID, filter)
+	if len(files) == 0 {
+		fmt.Fprintf(a.Stdout, "grip: no derivable contracts for %s — nothing to adopt.\n", moduleID)
+		return exitOK
+	}
+	wrote, missing := 0, 0
+	for _, f := range files {
+		if f.Missing {
+			missing++
+			fmt.Fprintf(a.Stderr, "grip: refusing to adopt %s contract — its current shape could not be derived\n", f.Kind)
+			continue
+		}
+		abs := filepath.Join(root, filepath.FromSlash(f.Path))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitUsage
+		}
+		if err := os.WriteFile(abs, []byte(f.Content), 0o644); err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitUsage
+		}
+		wrote++
+		fmt.Fprintf(a.Stdout, "adopted %s\n", f.Path)
+	}
+	fmt.Fprintf(a.Stdout, "grip: adopted %d contract baseline(s) for %s.\n", wrote, moduleID)
+	if missing > 0 {
+		// Fail-closed: the human asked to adopt a contract we could not derive.
 		return gate.ExitFailClosed
 	}
 	return exitOK
