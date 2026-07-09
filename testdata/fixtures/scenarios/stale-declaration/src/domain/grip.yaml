@@ -1,0 +1,12 @@
+module: domain
+intent: >
+  Owns the Order aggregate. (Scenario: the facade still lists LegacyOrder, an
+  export that has since been deleted — symmetric drift.)
+architecture:
+  facade:
+    - Order
+    - LegacyOrder
+  dependencies:
+    allow: []
+    layer: domain
+  cycles: forbid

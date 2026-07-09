@@ -1,0 +1,23 @@
+version: 1
+planes:
+  architecture: { enabled: true }
+
+languages:
+  typescript:
+    roots: ["src"]
+    tool: { name: dependency-cruiser, minVersion: "16.0.0" }
+  php:
+    roots: ["app"]
+    tool: { name: deptrac, minVersion: "2.0.0" }
+
+modules:
+  granularity: directory
+
+policy:
+  layers:
+    order: [domain, application, infrastructure]
+
+gate:
+  failClosed: true
+  local: { planes: [architecture] }
+  ci: { planes: [architecture] }

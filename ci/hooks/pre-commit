@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Grip local pre-commit hook (plan/03 M0.9): a fast, incremental, advisory-but-
+# real gate. Install by symlinking into .git/hooks/pre-commit, or use the
+# pre-commit framework entry in .pre-commit-hooks.yaml.
+#
+# Local mode is a preview; CI (`grip gate --ci`) is authoritative. This hook
+# never lets a fail-closed condition slip through: exit 1 and 2 both block the
+# commit.
+set -euo pipefail
+
+GRIP="${GRIP_BIN:-grip}"
+if ! command -v "$GRIP" >/dev/null 2>&1; then
+  echo "grip: binary not found on PATH (set GRIP_BIN or install grip). Skipping local gate." >&2
+  exit 0
+fi
+
+# Local, incremental mode over the changed working tree.
+if "$GRIP" gate --local; then
+  exit 0
+else
+  code=$?
+  echo "grip: local gate blocked this commit (exit $code). Fix the boundary or edit the manifest, then re-commit." >&2
+  echo "      Run 'grip gate --local' to see the full report, or 'grip diff' for the shape delta." >&2
+  exit "$code"
+fi

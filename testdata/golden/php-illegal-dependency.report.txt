@@ -1,0 +1,7 @@
+grip: BLOCKED (exit 1)
+planes: architecture · governed modules: 6 · ungoverned: 1
+
+blocking violations (1):
+  ✖ [arch.illegal-dependency] app/Infrastructure (app/Infrastructure/OrderRepository.php:6) — module app/Infrastructure depends on app/Domain at app/Infrastructure/OrderRepository.php:6, which is not in its allowed dependencies — add app/Domain to app/Infrastructure's dependencies.allow or remove the dependency.
+
+ungoverned modules (no grip.yaml): src/legacy

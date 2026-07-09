@@ -1,0 +1,76 @@
+# Grip GitHub Action (plan/03 M0.9). Drop into a workflow to gate PRs: it builds
+# grip, provisions the analyzers, runs `grip gate --ci`, uploads SARIF for inline
+# annotations, and fails the check on a block (exit 1 or 2).
+#
+# Example:
+#   - uses: artembatutin/grip/ci/github-action@v0
+#     with:
+#       working-directory: .
+name: "Grip architecture gate"
+description: "Fail the build if an AI-agent change moves the system's shape without consent."
+inputs:
+  working-directory:
+    description: "Repo subdirectory containing .grip.yaml"
+    required: false
+    default: "."
+  analysis-dir:
+    description: "Optional dir of recorded analyzer reports (offline/testing). If unset, real analyzers run."
+    required: false
+    default: ""
+  grip-version:
+    description: "Grip version/ref to build"
+    required: false
+    default: "main"
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.26.x"
+    - name: Set up Node (dependency-cruiser)
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+    - name: Set up PHP (deptrac)
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: "8.3"
+    - name: Provision analyzers
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.analysis-dir }}" ]; then
+          npm i -g dependency-cruiser ts-morph || true
+          composer global require qossmic/deptrac nikic/php-parser || true
+        fi
+    - name: Build grip
+      shell: bash
+      run: |
+        go install "github.com/artembatutin/grip/cmd/grip@${{ inputs.grip-version }}" || \
+          (git clone --depth 1 --branch "${{ inputs.grip-version }}" https://github.com/artembatutin/grip /tmp/grip && \
+           cd /tmp/grip && go build -o "$RUNNER_TEMP/grip" ./cmd/grip && echo "$RUNNER_TEMP" >> "$GITHUB_PATH")
+    - name: Run grip gate
+      id: gate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set +e
+        FLAGS="--ci --sarif"
+        if [ -n "${{ inputs.analysis-dir }}" ]; then FLAGS="$FLAGS --analysis-dir ${{ inputs.analysis-dir }}"; fi
+        grip gate $FLAGS > grip.sarif
+        echo "exit=$?" >> "$GITHUB_OUTPUT"
+        # Human summary to the job log (re-run without --sarif).
+        grip gate --ci ${{ inputs.analysis-dir && format('--analysis-dir {0}', inputs.analysis-dir) || '' }} || true
+    - name: Upload SARIF
+      if: always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.working-directory }}/grip.sarif
+    - name: Fail on block
+      shell: bash
+      run: |
+        code="${{ steps.gate.outputs.exit }}"
+        if [ "$code" != "0" ]; then
+          echo "::error::grip blocked this change (exit $code)."
+          exit "$code"
+        fi

@@ -1,0 +1,4 @@
+grip: PASS (exit 0)
+planes: architecture · governed modules: 6 · ungoverned: 1
+
+ungoverned modules (no grip.yaml): src/legacy

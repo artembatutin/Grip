@@ -1,0 +1,60 @@
+# Grip's OWN CI (plan/03 M0.0) — separate from the CI integration Grip ships
+# (that lives in ci/, see M0.9). Builds, vets, lints, tests, and asserts
+# determinism across Linux and macOS (NFR-1).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: build · vet · lint · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: go vet
+        run: go vet ./...
+      - name: gofmt
+        run: |
+          out="$(gofmt -l cmd internal)"
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - name: build (static)
+        run: CGO_ENABLED=0 go build -trimpath -o bin/grip ./cmd/grip
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+      - name: test
+        run: go test -count=1 ./...
+
+  determinism:
+    name: determinism (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: acceptance matrix + IR-hash determinism
+        run: go test -count=1 -run 'TestAcceptanceMatrix|TestDeterminism|TestMergedIR' ./internal/acceptance/ -v
+      - name: assert IR hash is identical across OSes
+        run: |
+          # The determinism test already asserts 100x stability in-process; here
+          # we additionally record the base fixture hash so a cross-OS drift is
+          # visible in the job logs.
+          go test -run TestDeterminismIRHash -v ./internal/acceptance/

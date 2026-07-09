@@ -1,0 +1,381 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/artembatutin/grip/internal/config"
+	"github.com/artembatutin/grip/internal/diff"
+	"github.com/artembatutin/grip/internal/gate"
+	"github.com/artembatutin/grip/internal/ir"
+	"github.com/artembatutin/grip/internal/manifest"
+	"github.com/artembatutin/grip/internal/plane"
+	"github.com/artembatutin/grip/internal/plane/architecture"
+	"github.com/artembatutin/grip/internal/ratify"
+	"github.com/artembatutin/grip/internal/report"
+)
+
+// baselineRelPath is where ratify writes and diff reads the baseline snapshot.
+var baselineRelPath = filepath.Join(".grip", "baseline.json")
+
+func (a *App) cmdVersion(args []string) int {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	fmt.Fprintf(a.Stdout, "grip %s\n", Version)
+	fmt.Fprintf(a.Stdout, "ir schema: %s\n", ir.Version)
+	// Analyzer versions are resolved per run and captured in the IR/report; the
+	// configured tools are shown when a repo config is reachable.
+	if root, err := resolveRepoRoot(cwd()); err == nil {
+		if cfg, err := config.Load(root, a.Reg); err == nil {
+			langs := cfg.LanguageRoots()
+			for _, l := range langs {
+				fmt.Fprintf(a.Stdout, "analyzer[%s]: %s\n", l.Language, cfg.Languages[l.Language].Tool.Name)
+			}
+		}
+	}
+	return exitOK
+}
+
+func (a *App) cmdGate(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("gate", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	local := fs.Bool("local", false, "fast local (incremental) mode")
+	ci := fs.Bool("ci", false, "authoritative CI (full) mode")
+	planeName := fs.String("plane", "", "run only this plane")
+	asJSON := fs.Bool("json", false, "emit JSON report")
+	asSARIF := fs.Bool("sarif", false, "emit SARIF report")
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	opts := gate.Options{
+		CI:     *ci && !*local,
+		Tools:  toolRunner(root, *analysisDir),
+		Commit: os.Getenv("GRIP_COMMIT"),
+	}
+	if *planeName != "" {
+		opts.Planes = []string{*planeName}
+	}
+	out, err := gate.Run(ctx, cfg, a.Reg, opts)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+
+	view := report.View{Outcome: out}
+	if d := a.deltaAgainstBaseline(root, cfg, out); d != nil {
+		view.Delta = d
+	}
+	if code := a.render(view, *asJSON, *asSARIF); code != exitOK {
+		return code
+	}
+	return out.ExitCode
+}
+
+func (a *App) cmdDerive(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("derive", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	out, err := gate.Run(ctx, cfg, a.Reg, gate.Options{Tools: toolRunner(root, *analysisDir), Commit: os.Getenv("GRIP_COMMIT")})
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	if out.Graph == nil {
+		fmt.Fprintln(a.Stderr, "grip: no IR derived (no architecture plane enabled?)")
+		return gate.ExitFailClosed
+	}
+	b, err := out.Graph.Canonical()
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitFailClosed
+	}
+	a.Stdout.Write(b)
+	return exitOK
+}
+
+func (a *App) cmdModules(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("modules", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	disc, err := manifest.Discover(root, cfg.LanguageRoots())
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	if *asJSON {
+		payload := map[string]interface{}{
+			"governed":   disc.GovernedIDs(),
+			"ungoverned": disc.UngovernedIDs(),
+		}
+		b, _ := json.MarshalIndent(payload, "", "  ")
+		fmt.Fprintln(a.Stdout, string(b))
+		return exitOK
+	}
+	fmt.Fprintf(a.Stdout, "governed modules (%d):\n", len(disc.Governed))
+	for _, m := range disc.Governed {
+		fmt.Fprintf(a.Stdout, "  %s [%s]\n", m.ID, m.Language)
+	}
+	fmt.Fprintf(a.Stdout, "ungoverned modules (%d):\n", len(disc.Ungoverned))
+	for _, m := range disc.Ungoverned {
+		fmt.Fprintf(a.Stdout, "  %s [%s] — no grip.yaml\n", m.ID, m.Language)
+	}
+	return exitOK
+}
+
+func (a *App) cmdDiff(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	baseline := fs.String("baseline", "", "path to a baseline snapshot (default .grip/baseline.json)")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	basePath := *baseline
+	if basePath == "" {
+		basePath = filepath.Join(root, baselineRelPath)
+	}
+	before, err := loadSnapshot(basePath)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: no baseline to diff against (%v); run `grip ratify` first\n", err)
+		return gate.ExitUsage
+	}
+	out, err := gate.Run(ctx, cfg, a.Reg, gate.Options{Tools: toolRunner(root, *analysisDir), Commit: os.Getenv("GRIP_COMMIT")})
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	after := a.currentSnapshot(root, cfg, out.Graph)
+	d := diff.Compute(before, after)
+	if *asJSON {
+		b, _ := json.MarshalIndent(d, "", "  ")
+		fmt.Fprintln(a.Stdout, string(b))
+		return exitOK
+	}
+	if d.Empty() {
+		fmt.Fprintln(a.Stdout, "grip: no shape change vs baseline.")
+		return exitOK
+	}
+	view := report.View{Outcome: out, Delta: d}
+	fmt.Fprint(a.Stdout, report.Human(view))
+	return exitOK
+}
+
+func (a *App) cmdInit(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	write := fs.Bool("write", false, "write generated files (default: dry-run print)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root := cwd()
+	if r, err := resolveRepoRoot(root); err == nil {
+		root = r
+	}
+	cfg, cfgErr := config.Load(root, a.Reg)
+	if cfgErr != nil {
+		fmt.Fprintf(a.Stderr, "grip init: no usable %s yet; write one first or run in a configured repo (%v)\n", config.Filename, cfgErr)
+		return gate.ExitUsage
+	}
+	// Onboarding derives from CANDIDATE modules (immediate children of roots
+	// with source), so it works on a repo with zero grip.yaml files yet.
+	cand, err := manifest.Candidates(root, cfg.LanguageRoots())
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	svc := plane.DeriveServices{
+		Commit:    os.Getenv("GRIP_COMMIT"),
+		RepoRoot:  root,
+		Tools:     toolRunner(root, *analysisDir),
+		ModuleOf:  cand.ModuleOf,
+		FilesOf:   cand.FilesOf,
+		Languages: cfg.LanguageSpecs(),
+	}
+	g, err := BuildOrchestrator().Derive(ctx, cand.Refs(), svc)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip init: %v\n", err)
+		return gate.ExitFailClosed
+	}
+	files := ratify.DraftManifests(g)
+	for _, f := range files {
+		abs := filepath.Join(root, filepath.FromSlash(f.Path))
+		if *write {
+			if _, err := os.Stat(abs); err == nil {
+				fmt.Fprintf(a.Stdout, "skip (exists): %s\n", f.Path)
+				continue
+			}
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+				return gate.ExitUsage
+			}
+			if err := os.WriteFile(abs, []byte(f.Content), 0o644); err != nil {
+				fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+				return gate.ExitUsage
+			}
+			fmt.Fprintf(a.Stdout, "wrote draft: %s\n", f.Path)
+		} else {
+			fmt.Fprintf(a.Stdout, "--- %s ---\n%s\n", f.Path, f.Content)
+		}
+	}
+	return exitOK
+}
+
+func (a *App) cmdRatify(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("ratify", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	out, err := gate.Run(ctx, cfg, a.Reg, gate.Options{Tools: toolRunner(root, *analysisDir), Commit: os.Getenv("GRIP_COMMIT")})
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	if out.Graph == nil {
+		fmt.Fprintln(a.Stderr, "grip ratify: nothing derived")
+		return gate.ExitFailClosed
+	}
+	snap := a.currentSnapshot(root, cfg, out.Graph)
+	abs := filepath.Join(root, baselineRelPath)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	b, err := json.MarshalIndent(snap, "", "  ")
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	if err := os.WriteFile(abs, append(b, '\n'), 0o644); err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	fmt.Fprintf(a.Stdout, "grip: baseline written to %s (gate: %s)\n", baselineRelPath, out.Decision)
+	return exitOK
+}
+
+// --- helpers ---
+
+func (a *App) loadRepo() (root string, cfg *config.Config, code int) {
+	root, err := resolveRepoRoot(cwd())
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return "", nil, gate.ExitUsage
+	}
+	cfg, err = config.Load(root, a.Reg)
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return "", nil, gate.ExitUsage
+	}
+	return root, cfg, exitOK
+}
+
+func (a *App) render(v report.View, asJSON, asSARIF bool) int {
+	switch {
+	case asJSON:
+		b, err := report.JSON(v)
+		if err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitFailClosed
+		}
+		a.Stdout.Write(b)
+	case asSARIF:
+		b, err := report.SARIF(v)
+		if err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitFailClosed
+		}
+		a.Stdout.Write(b)
+	default:
+		fmt.Fprint(a.Stdout, report.Human(v))
+	}
+	return exitOK
+}
+
+// currentSnapshot builds a diff.Input from the derived graph plus the declared
+// surfaces read from each governed module's manifest.
+func (a *App) currentSnapshot(root string, cfg *config.Config, g *ir.Graph) diff.Input {
+	in := diff.Input{Graph: g, Facades: map[string][]string{}, Allows: map[string][]string{}}
+	disc, err := manifest.Discover(root, cfg.LanguageRoots())
+	if err != nil {
+		return in
+	}
+	for _, m := range disc.Governed {
+		facade, allow := architecture.DeclaredSurface(m.Manifest.Section(architecture.PlaneID), m.ID)
+		if len(facade) > 0 {
+			sort.Strings(facade)
+			in.Facades[m.ID] = facade
+		}
+		if len(allow) > 0 {
+			sort.Strings(allow)
+			in.Allows[m.ID] = allow
+		}
+	}
+	return in
+}
+
+func (a *App) deltaAgainstBaseline(root string, cfg *config.Config, out *gate.Outcome) *diff.Delta {
+	if out.Graph == nil {
+		return nil
+	}
+	before, err := loadSnapshot(filepath.Join(root, baselineRelPath))
+	if err != nil {
+		return nil // no baseline yet — gate simply omits the delta
+	}
+	after := a.currentSnapshot(root, cfg, out.Graph)
+	d := diff.Compute(before, after)
+	if d.Empty() {
+		return nil
+	}
+	return d
+}
+
+func loadSnapshot(path string) (diff.Input, error) {
+	var in diff.Input
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return in, err
+	}
+	if err := json.Unmarshal(b, &in); err != nil {
+		return in, err
+	}
+	return in, nil
+}

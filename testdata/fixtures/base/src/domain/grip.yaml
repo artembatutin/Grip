@@ -1,0 +1,11 @@
+module: domain
+intent: >
+  Owns the Order aggregate and its invariants. Must not talk to the database,
+  the network, or reach into other modules.
+architecture:
+  facade:
+    - Order
+  dependencies:
+    allow: []
+    layer: domain
+  cycles: forbid

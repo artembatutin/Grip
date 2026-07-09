@@ -1,0 +1,13 @@
+module: domain
+intent: >
+  Owns the Order aggregate. (Scenario: domain now depends outward on the
+  infrastructure-layer analytics module — an allowed edge, but against the layer
+  order, so the ONLY violation is the direction violation.)
+architecture:
+  facade:
+    - Order
+  dependencies:
+    allow:
+      - src/analytics
+    layer: domain
+  cycles: forbid

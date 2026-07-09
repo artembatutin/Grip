@@ -1,0 +1,12 @@
+module: domain
+intent: >
+  Owns the Order aggregate. (Scenario: a new export OrderId is added AND declared
+  in the facade in the same diff — the legitimate way to widen a surface.)
+architecture:
+  facade:
+    - Order
+    - OrderId
+  dependencies:
+    allow: []
+    layer: domain
+  cycles: forbid

@@ -1,0 +1,12 @@
+module: Infrastructure
+intent: >
+  Persists orders. (Scenario: the agent kept using App\Domain\Order but removed
+  app/Domain from the allow-list.)
+architecture:
+  facade:
+    - OrderRepository
+  dependencies:
+    allow:
+      - app/Application
+    layer: infrastructure
+  cycles: forbid

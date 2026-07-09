@@ -1,0 +1,17 @@
+{
+  "tool": { "name": "dependency-cruiser", "version": "16.3.0" },
+  "surfaceTool": { "name": "ts-morph", "version": "22.0.0" },
+  "exports": [
+    { "file": "src/domain/index.ts", "name": "Order", "kind": "class", "line": 2 },
+    { "file": "src/application/index.ts", "name": "PlaceOrder", "kind": "class", "line": 4 },
+    { "file": "src/infrastructure/index.ts", "name": "OrderRepo", "kind": "class", "line": 5 }
+  ],
+  "imports": [
+    { "fromFile": "src/application/index.ts", "toFile": "src/domain/index.ts", "symbol": "Order", "line": 1, "kind": "import" },
+    { "fromFile": "src/infrastructure/index.ts", "toFile": "src/domain/index.ts", "symbol": "Order", "line": 1, "kind": "import" },
+    { "fromFile": "src/infrastructure/index.ts", "toFile": "src/application/index.ts", "symbol": "PlaceOrder", "line": 2, "kind": "import" }
+  ],
+  "reduced": [
+    { "file": "src/legacy/loader.ts", "reason": "dynamic import() not statically resolvable", "level": "reduced" }
+  ]
+}

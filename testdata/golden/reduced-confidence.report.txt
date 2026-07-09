@@ -1,0 +1,7 @@
+grip: BLOCKED (exit 2)
+planes: architecture · governed modules: 6 · ungoverned: 1
+
+fail-closed (1):
+  ✖ cannot verify the dependency boundary for module src/infrastructure at src/infrastructure/dynamic.ts because analysis confidence is reduced (call target computed at runtime via a dynamic dispatch table) — resolve the dynamic construct or add an explicit declaration so the boundary can be checked.
+
+ungoverned modules (no grip.yaml): src/legacy

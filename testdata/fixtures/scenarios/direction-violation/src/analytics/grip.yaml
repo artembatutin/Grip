@@ -1,0 +1,11 @@
+module: analytics
+intent: >
+  Emits metrics. An infrastructure-layer sink used to isolate the direction rule
+  (nothing points back, so no cycle is introduced).
+architecture:
+  facade:
+    - Metric
+  dependencies:
+    allow: []
+    layer: infrastructure
+  cycles: forbid

@@ -1,0 +1,12 @@
+module: infrastructure
+intent: >
+  Persists orders. May depend on the domain and application layers.
+architecture:
+  facade:
+    - OrderRepo
+  dependencies:
+    allow:
+      - src/domain
+      - src/application
+    layer: infrastructure
+  cycles: forbid

@@ -1,0 +1,15 @@
+# pre-commit framework integration (https://pre-commit.com). In a consumer repo:
+#
+#   repos:
+#     - repo: https://github.com/artembatutin/grip
+#       rev: v0.1.0
+#       hooks:
+#         - id: grip-gate
+#
+- id: grip-gate
+  name: grip architecture gate (local)
+  description: Block a commit that moves the system's shape without consent.
+  entry: ci/hooks/pre-commit
+  language: script
+  pass_filenames: false
+  always_run: true

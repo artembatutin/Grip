@@ -1,0 +1,14 @@
+{
+  "tool": { "name": "deptrac", "version": "2.0.4" },
+  "surfaceTool": { "name": "php-parser", "version": "5.3.1" },
+  "exports": [
+    { "file": "app/Domain/Order.php", "name": "Order", "kind": "class", "line": 6 },
+    { "file": "app/Application/PlaceOrder.php", "name": "PlaceOrder", "kind": "class", "line": 8 },
+    { "file": "app/Infrastructure/OrderRepository.php", "name": "OrderRepository", "kind": "class", "line": 9 }
+  ],
+  "imports": [
+    { "fromFile": "app/Application/PlaceOrder.php", "toFile": "app/Domain/Order.php", "symbol": "Order", "line": 5, "kind": "import" },
+    { "fromFile": "app/Infrastructure/OrderRepository.php", "toFile": "app/Domain/Order.php", "symbol": "Order", "line": 6, "kind": "import" },
+    { "fromFile": "app/Infrastructure/OrderRepository.php", "toFile": "app/Application/PlaceOrder.php", "symbol": "PlaceOrder", "line": 5, "kind": "import" }
+  ]
+}

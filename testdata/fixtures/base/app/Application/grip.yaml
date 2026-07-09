@@ -1,0 +1,12 @@
+module: Application
+intent: >
+  Orchestrates placing an order. May use the domain; must not touch
+  infrastructure or the network.
+architecture:
+  facade:
+    - PlaceOrder
+  dependencies:
+    allow:
+      - app/Domain
+    layer: application
+  cycles: forbid

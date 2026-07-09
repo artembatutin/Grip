@@ -1,0 +1,12 @@
+module: domain
+intent: >
+  Owns the Order aggregate. (Scenario: same layer as application and mutually
+  allowed, so the ONLY violation is the introduced cycle.)
+architecture:
+  facade:
+    - Order
+  dependencies:
+    allow:
+      - src/application
+    layer: application
+  cycles: forbid

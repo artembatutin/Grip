@@ -1,0 +1,7 @@
+grip: BLOCKED (exit 1)
+planes: architecture · governed modules: 6 · ungoverned: 1
+
+blocking violations (1):
+  ✖ [arch.illegal-dependency] src/infrastructure (src/infrastructure/index.ts:1) — module src/infrastructure depends on src/domain at src/infrastructure/index.ts:1, which is not in its allowed dependencies — add src/domain to src/infrastructure's dependencies.allow or remove the dependency.
+
+ungoverned modules (no grip.yaml): src/legacy
