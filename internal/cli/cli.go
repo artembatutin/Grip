@@ -81,6 +81,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdDerive(ctx, rest)
 	case "diff":
 		return a.cmdDiff(ctx, rest)
+	case "view":
+		return a.cmdView(ctx, rest)
 	case "modules":
 		return a.cmdModules(ctx, rest)
 	case "init":
@@ -106,6 +108,7 @@ commands:
   gate      derive, reconcile, and decide pass/block for the repo
   derive    dump the derived Common Graph IR (debug)
   diff      show the shape delta vs a baseline snapshot
+  view      render a read-only HTML viewer of the derived graph + shape diff
   modules   list governed and ungoverned modules
   init      scaffold .grip.yaml and draft grip.yaml manifests
   ratify    accept current derived state as the baseline

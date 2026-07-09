@@ -1,0 +1,63 @@
+{
+  "decision": "block",
+  "exitCode": 1,
+  "irHash": "abcdef0123456789",
+  "planesRun": ["architecture"],
+  "governed": ["src/application", "src/domain", "src/infrastructure"],
+  "ungoverned": ["src/legacy"],
+  "analyzers": [{ "name": "dependency-cruiser", "version": "16.3.0", "language": "typescript" }],
+  "failClosed": [],
+  "violations": [
+    {
+      "ruleId": "arch.illegal-dependency",
+      "plane": "architecture",
+      "tier": 0,
+      "kind": "violation",
+      "location": { "module": "src/infrastructure", "file": "src/infrastructure/index.ts", "line": 3, "symbol": "Order" },
+      "message": "module src/infrastructure depends on src/domain at src/infrastructure/index.ts:3, which is not in its allowed dependencies — add src/domain to src/infrastructure's dependencies.allow or remove the dependency.",
+      "confidence": "full"
+    },
+    {
+      "ruleId": "arch.duplication",
+      "plane": "architecture",
+      "tier": 1,
+      "kind": "violation",
+      "location": { "module": "src/domain", "file": "src/domain/index.ts", "line": 2 },
+      "message": "modules src/application, src/domain share 14 lines of duplicated code (e.g. src/application/index.ts:4 and src/domain/index.ts:2) — extract the shared logic into one module both depend on.",
+      "confidence": "full"
+    },
+    {
+      "ruleId": "arch.unclear-name",
+      "plane": "architecture",
+      "tier": 2,
+      "kind": "violation",
+      "location": { "module": "src/application" },
+      "message": "a reviewer may find a name here unclear — consider a more descriptive name (judgment-assisted, non-blocking).",
+      "confidence": "none"
+    }
+  ],
+  "graph": {
+    "irVersion": "1",
+    "commit": "test-commit",
+    "modules": [
+      { "id": "src/application", "language": "typescript", "files": ["src/application/index.ts"], "exports": [{ "name": "PlaceOrder", "kind": "class", "file": "src/application/index.ts", "line": 4 }], "reachableFromOutside": ["PlaceOrder"], "layer": "application" },
+      { "id": "src/domain", "language": "typescript", "files": ["src/domain/index.ts"], "exports": [{ "name": "Order", "kind": "class", "file": "src/domain/index.ts", "line": 2 }], "reachableFromOutside": ["Order"], "layer": "domain" },
+      { "id": "src/infrastructure", "language": "typescript", "files": ["src/infrastructure/index.ts"], "exports": [{ "name": "OrderRepo", "kind": "class", "file": "src/infrastructure/index.ts", "line": 5 }], "reachableFromOutside": ["OrderRepo", "Secret"], "layer": "infrastructure" }
+    ],
+    "edges": [
+      { "from": "src/application", "to": "src/domain", "kind": "import", "evidence": [{ "file": "src/application/index.ts", "line": 1, "symbol": "Order" }] },
+      { "from": "src/infrastructure", "to": "src/domain", "kind": "import", "evidence": [{ "file": "src/infrastructure/index.ts", "line": 3, "symbol": "Order" }] }
+    ],
+    "confidence": [],
+    "analyzers": [{ "name": "dependency-cruiser", "version": "16.3.0", "language": "typescript" }]
+  },
+  "declared": {
+    "src/application": { "facade": ["PlaceOrder"], "allow": ["src/domain"] },
+    "src/domain": { "facade": ["Order"] },
+    "src/infrastructure": { "facade": ["OrderRepo"] }
+  },
+  "delta": {
+    "edgesAdded": [{ "from": "src/infrastructure", "to": "src/domain" }],
+    "facadeEdited": [{ "module": "src/domain", "added": ["OrderId"] }]
+  }
+}

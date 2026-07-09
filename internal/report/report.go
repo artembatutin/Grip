@@ -15,11 +15,14 @@ import (
 	"github.com/artembatutin/grip/internal/plane"
 )
 
-// View bundles everything the renderers need: the gate outcome and an optional
-// shape delta.
+// View bundles everything the renderers need: the gate outcome, an optional shape
+// delta, and the declared surfaces (facade/allow per module) the read-only viewer
+// overlays on the derived graph. Declared is plain data supplied by the CLI so the
+// report package stays plane-agnostic.
 type View struct {
-	Outcome *gate.Outcome
-	Delta   *diff.Delta
+	Outcome  *gate.Outcome
+	Delta    *diff.Delta
+	Declared map[string]Surface
 }
 
 // Human renders the default terminal report.
@@ -158,32 +161,10 @@ func declSummary(c diff.DeclChange) string {
 	return strings.Join(parts, "; ")
 }
 
-// JSON renders the machine-readable report with a stable schema.
+// JSON renders the machine-readable report with a stable schema. It is the exact
+// document the read-only viewer consumes; HTML() renders the same Document.
 func JSON(v View) ([]byte, error) {
-	payload := struct {
-		Decision   string            `json:"decision"`
-		ExitCode   int               `json:"exitCode"`
-		IRHash     string            `json:"irHash"`
-		PlanesRun  []string          `json:"planesRun"`
-		Governed   []string          `json:"governed"`
-		Ungoverned []string          `json:"ungoverned"`
-		Analyzers  interface{}       `json:"analyzers"`
-		FailClosed []gate.FailClosed `json:"failClosed"`
-		Violations []plane.Violation `json:"violations"`
-		Delta      *diff.Delta       `json:"delta,omitempty"`
-	}{
-		Decision:   v.Outcome.Decision,
-		ExitCode:   v.Outcome.ExitCode,
-		IRHash:     v.Outcome.IRHash,
-		PlanesRun:  v.Outcome.PlanesRun,
-		Governed:   v.Outcome.Governed,
-		Ungoverned: v.Outcome.Ungoverned,
-		Analyzers:  v.Outcome.Analyzers,
-		FailClosed: v.Outcome.FailClosed,
-		Violations: v.Outcome.Violations,
-		Delta:      v.Delta,
-	}
-	b, err := json.MarshalIndent(payload, "", "  ")
+	b, err := json.MarshalIndent(BuildDocument(v), "", "  ")
 	if err != nil {
 		return nil, err
 	}

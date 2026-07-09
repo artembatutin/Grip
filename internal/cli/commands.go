@@ -81,10 +81,65 @@ func (a *App) cmdGate(ctx context.Context, args []string) int {
 	if d := a.deltaAgainstBaseline(root, cfg, out); d != nil {
 		view.Delta = d
 	}
+	if *asJSON {
+		// The JSON report is the document the read-only viewer consumes, so make it
+		// a superset: attach the declared surfaces for the allowed-vs-actual overlay.
+		view.Declared = a.declaredSurfaces(root, cfg)
+	}
 	if code := a.render(view, *asJSON, *asSARIF); code != exitOK {
 		return code
 	}
 	return out.ExitCode
+}
+
+// cmdView renders the read-only visualization (M4 Part B, GR-X-7): a self-contained
+// static HTML page over the gate's JSON report — the derived graph with manifest
+// overlays plus the shape diff. It is STRICTLY read-only and derived: it consumes
+// the same report model as `--json` and offers no affordance to change a manifest,
+// edge, or facade. It never gates, so it returns exit 0 on success regardless of
+// the decision it renders.
+func (a *App) cmdView(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("view", flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	asJSON := fs.Bool("json", false, "emit the underlying JSON report instead of HTML")
+	outPath := fs.String("o", "", "write the viewer HTML to this file (default: stdout)")
+	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	root, cfg, code := a.loadRepo()
+	if code != exitOK {
+		return code
+	}
+	out, err := gate.Run(ctx, cfg, a.Reg, gate.Options{Tools: toolRunner(root, *analysisDir), Commit: os.Getenv("GRIP_COMMIT")})
+	if err != nil {
+		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+		return gate.ExitUsage
+	}
+	view := report.View{Outcome: out, Declared: a.declaredSurfaces(root, cfg)}
+	if d := a.deltaAgainstBaseline(root, cfg, out); d != nil {
+		view.Delta = d
+	}
+	if *asJSON {
+		b, err := report.JSON(view)
+		if err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitFailClosed
+		}
+		a.Stdout.Write(b)
+		return exitOK
+	}
+	htmlDoc := report.HTML(report.BuildDocument(view))
+	if *outPath != "" {
+		if err := os.WriteFile(*outPath, []byte(htmlDoc), 0o644); err != nil {
+			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
+			return gate.ExitUsage
+		}
+		fmt.Fprintf(a.Stderr, "grip: wrote read-only viewer to %s\n", *outPath)
+		return exitOK
+	}
+	fmt.Fprint(a.Stdout, htmlDoc)
+	return exitOK
 }
 
 func (a *App) cmdDerive(ctx context.Context, args []string) int {
@@ -556,6 +611,28 @@ func (a *App) currentSnapshot(root string, cfg *config.Config, g *ir.Graph) diff
 		}
 	}
 	return in
+}
+
+// declaredSurfaces reads each governed module's declared facade and allowed
+// dependencies into plain report.Surface data, for the viewer's allowed-vs-actual
+// overlay. The CLI is the wiring point, so it may name the architecture plane here;
+// the report package stays plane-agnostic and receives only the resulting bytes.
+func (a *App) declaredSurfaces(root string, cfg *config.Config) map[string]report.Surface {
+	out := map[string]report.Surface{}
+	disc, err := manifest.Discover(root, cfg.LanguageRoots())
+	if err != nil {
+		return out
+	}
+	for _, m := range disc.Governed {
+		facade, allow := architecture.DeclaredSurface(m.Manifest.Section(architecture.PlaneID), m.ID)
+		if len(facade) == 0 && len(allow) == 0 {
+			continue
+		}
+		sort.Strings(facade)
+		sort.Strings(allow)
+		out[m.ID] = report.Surface{Facade: facade, Allow: allow}
+	}
+	return out
 }
 
 func (a *App) deltaAgainstBaseline(root string, cfg *config.Config, out *gate.Outcome) *diff.Delta {
