@@ -66,13 +66,13 @@ func additiveSummary(kind string) string {
 // consumer (when the checker resolved one), and the remedy.
 func msgBreaking(mod, kind string, c Change) string {
 	return fmt.Sprintf("module %s's %s contract %s%s%s — restore it or run `grip ratify contract %s` to accept the new contract once %s consumers are updated.",
-		mod, kindNoun(kind), breakingPhrase(kind, c), consumerClause(c), at(c.File, c.Line), mod, kindNoun(kind))
+		mod, kindNoun(kind), breakingPhrase(c), at(c.File, c.Line), consumerClause(c), mod, kindNoun(kind))
 }
 
 // msgAdditive renders a Tier B advisory (additive element or pending deprecation).
 func msgAdditive(mod, kind string, c Change) string {
 	return fmt.Sprintf("module %s's %s contract %s%s — run `grip ratify contract %s` to record it as part of the baseline once consumers are ready.",
-		mod, kindNoun(kind), additivePhrase(kind, c), at(c.File, c.Line), mod)
+		mod, kindNoun(kind), additivePhrase(c), at(c.File, c.Line), mod)
 }
 
 // msgRepinned renders an intentional re-ratification (principle 5): the human
@@ -106,7 +106,7 @@ func msgUnknownNature(mod, kind, nature string, level ir.Level) string {
 }
 
 // breakingPhrase renders the verb clause for a breaking change by nature.
-func breakingPhrase(kind string, c Change) string {
+func breakingPhrase(c Change) string {
 	switch c.Nature {
 	case NatureRemoved:
 		return "removes " + c.Element
@@ -126,7 +126,7 @@ func breakingPhrase(kind string, c Change) string {
 }
 
 // additivePhrase renders the verb clause for an additive change by nature.
-func additivePhrase(kind string, c Change) string {
+func additivePhrase(c Change) string {
 	switch c.Nature {
 	case NatureOptionalAdded:
 		return "adds optional " + c.Element

@@ -1,0 +1,5 @@
+grip: PASS (exit 0)
+planes: contract · governed modules: 2 · ungoverned: 0
+
+intentional changes:
+  ~ module src/checkout's api contract was re-ratified on purpose — the baseline now records the new contract shape.

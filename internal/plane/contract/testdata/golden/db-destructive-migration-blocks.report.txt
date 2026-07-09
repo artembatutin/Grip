@@ -1,0 +1,5 @@
+grip: BLOCKED (exit 1)
+planes: contract · governed modules: 2 · ungoverned: 0
+
+blocking violations (1):
+  ✖ [contract.breaking-db] app/Orders (app/Orders/migrations/0002_drop_total.sql:1) — module app/Orders's db schema contract applies a destructive migration to orders.total at app/Orders/migrations/0002_drop_total.sql:1 — restore it or run `grip ratify contract app/Orders` to accept the new contract once db schema consumers are updated.

@@ -1,0 +1,5 @@
+grip: BLOCKED (exit 2)
+planes: contract · governed modules: 2 · ungoverned: 0
+
+fail-closed (1):
+  ✖ cannot verify module app/Orders's db schema contract because its prior version could not be resolved (confidence reduced) — prior migration 0001 is unreadable in this checkout.
