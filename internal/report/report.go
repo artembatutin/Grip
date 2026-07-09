@@ -36,7 +36,7 @@ func Human(v View) string {
 		strings.Join(o.PlanesRun, ", "), len(o.Governed), len(o.Ungoverned))
 
 	// Fail-closed reasons lead — they are environment/analysis blocks, not code.
-	blocks, advisories, cannot, intentional := partition(o.Violations)
+	blocks, advisories, judgment, cannot, intentional := partition(o.Violations)
 	if len(o.FailClosed) > 0 || len(cannot) > 0 {
 		fmt.Fprintf(&b, "\nfail-closed (%d):\n", len(o.FailClosed)+len(cannot))
 		for _, fc := range o.FailClosed {
@@ -57,6 +57,15 @@ func Human(v View) string {
 		fmt.Fprintf(&b, "\nadvisories (%d):\n", len(advisories))
 		for _, vi := range advisories {
 			fmt.Fprintf(&b, "  • %s\n", line(vi))
+		}
+	}
+	// Tier C judgment is the only place an LLM enters Grip. It is ALWAYS advisory
+	// and can never gate a merge, so it is rendered in its own clearly-labeled,
+	// non-blocking section (GR-X-6) — never mixed in with anything that can block.
+	if len(judgment) > 0 {
+		fmt.Fprintf(&b, "\njudgment (%d, non-blocking — advisory only, never gates):\n", len(judgment))
+		for _, vi := range judgment {
+			fmt.Fprintf(&b, "  ? %s\n", line(vi))
 		}
 	}
 
@@ -85,9 +94,13 @@ func line(v plane.Violation) string {
 	return fmt.Sprintf("[%s] %s — %s", v.RuleID, loc, v.Message)
 }
 
-func partition(vs []plane.Violation) (blocks, advisories, cannot, intentional []plane.Violation) {
+func partition(vs []plane.Violation) (blocks, advisories, judgment, cannot, intentional []plane.Violation) {
 	for _, v := range vs {
 		switch {
+		case v.Tier == plane.TierC:
+			// Tier C is judgment-assisted (LLM) and never gates; it is reported in
+			// its own section, never as a block or an ordinary advisory.
+			judgment = append(judgment, v)
 		case v.Kind == plane.KindCannotVerify:
 			cannot = append(cannot, v)
 		case v.Kind == plane.KindIntentionalChange:
@@ -191,6 +204,9 @@ func SARIF(v View) ([]byte, error) {
 		level := "error"
 		if vi.Tier == plane.TierB {
 			level = "warning"
+		}
+		if vi.Tier == plane.TierC {
+			level = "note" // judgment-assisted, never blocking
 		}
 		res := sarifResult{
 			RuleID:  vi.RuleID,

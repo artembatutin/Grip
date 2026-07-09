@@ -21,6 +21,7 @@ type Model struct {
 	LayerOrder []string
 	Ungoverned []string
 	Advisory   Signals
+	Judgment   JudgmentSignals
 }
 
 // IRGraph exposes the Common Graph IR so the engine can surface it for
@@ -213,6 +214,11 @@ func reconcile(intents map[string]Intent, m *Model) []plane.Violation {
 	// reported-but-non-gating violations here. They share this pure step but never
 	// the IR — m.Advisory is not part of the graph.
 	vs = append(vs, advisoryViolations(intents, m.Advisory)...)
+
+	// --- Tier C judgment (M4): non-deterministic, judgment-assisted, ALWAYS
+	// non-blocking. Produced by the injected advisor in Derive (the only LLM entry
+	// point) into m.Judgment; stamped Tier C here so it can never gate a merge.
+	vs = append(vs, judgmentViolations(m.Judgment)...)
 
 	return vs
 }

@@ -27,11 +27,34 @@ type Deriver interface {
 // Plane implements plane.Plane for the architecture axis.
 type Plane struct {
 	deriver Deriver
+	advisor Advisor // Tier C judgment seam (M4); noAdvisor by default
+}
+
+// Option configures a Plane at construction.
+type Option func(*Plane)
+
+// WithAdvisor injects the Tier C judgment source (the only place an LLM enters
+// Grip). Omitted, the plane uses noAdvisor and emits no Tier C findings — Grip is
+// deterministic by default, and the judgment pass is opt-in wiring. A nil advisor
+// is ignored (stays noAdvisor).
+func WithAdvisor(a Advisor) Option {
+	return func(p *Plane) {
+		if a != nil {
+			p.advisor = a
+		}
+	}
 }
 
 // New builds the architecture plane over a graph deriver (the derive
-// orchestrator in production; a stub in tests).
-func New(d Deriver) *Plane { return &Plane{deriver: d} }
+// orchestrator in production; a stub in tests). By default the Tier C judgment
+// pass is a no-op; pass WithAdvisor to enable it.
+func New(d Deriver, opts ...Option) *Plane {
+	p := &Plane{deriver: d, advisor: noAdvisor{}}
+	for _, o := range opts {
+		o(p)
+	}
+	return p
+}
 
 // ID identifies the plane.
 func (p *Plane) ID() string { return PlaneID }
@@ -60,6 +83,10 @@ func (p *Plane) Derive(ctx context.Context, mods []plane.ModuleRef, svc plane.De
 		// graph, never inside it. A missing advisory tool yields no advisories and
 		// never fails the gate.
 		Advisory: deriveAdvisory(ctx, svc),
+		// Tier C judgment pass (M4). Runs the injected advisor (the only LLM entry
+		// point) read-only over the derived graph. Its output lives beside the graph
+		// too, and reconcile stamps it Tier C — it can never gate a merge.
+		Judgment: judge(ctx, p.advisor, g),
 	}, nil
 }
 
