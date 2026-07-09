@@ -128,6 +128,18 @@ func TestAcceptanceMatrix(t *testing.T) {
 			wantExit:     0,
 			wantNotRule:  "arch.duplication",
 		},
+		{
+			// All six Tier B advisories surface at once from one recorded report,
+			// and the gate still PASSES: every advisory is reported, none gates.
+			name:         "advisory-all-tier-b-surface-without-blocking",
+			overlay:      "advisory-all",
+			wantDecision: "pass",
+			wantExit:     0,
+			wantRules: []string{
+				"arch.duplication", "arch.co-change", "arch.middle-man",
+				"arch.message-chains", "arch.speculative-generality", "arch.complexity",
+			},
+		},
 
 		// --- good diffs: each MUST pass ---
 		{
@@ -157,6 +169,11 @@ func TestAcceptanceMatrix(t *testing.T) {
 			}
 			if sc.wantRule != "" && !hasRule(out.Violations, sc.wantRule) {
 				t.Errorf("expected rule %q not fired; violations=%s\n%s", sc.wantRule, ruleList(out.Violations), human)
+			}
+			for _, r := range sc.wantRules {
+				if !hasRule(out.Violations, r) {
+					t.Errorf("expected rule %q not fired; violations=%s\n%s", r, ruleList(out.Violations), human)
+				}
 			}
 			if sc.wantNotRule != "" && hasRule(out.Violations, sc.wantNotRule) {
 				t.Errorf("rule %q fired but must not; %s", sc.wantNotRule, human)

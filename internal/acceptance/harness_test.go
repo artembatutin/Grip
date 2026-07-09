@@ -41,6 +41,7 @@ type scenario struct {
 	wantDecision string            // "pass" | "block"
 	wantExit     int
 	wantRule     string   // a rule id expected among violations ("" = none required)
+	wantRules    []string // every rule id that must appear among violations
 	wantContains []string // substrings expected in the human report
 	wantNotRule  string   // a rule id that must NOT appear ("" = no constraint)
 }

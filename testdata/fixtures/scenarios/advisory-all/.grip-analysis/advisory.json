@@ -1,0 +1,26 @@
+{
+  "clones": [
+    {
+      "lines": 14,
+      "occurrences": [
+        { "file": "src/domain/index.ts", "line": 2 },
+        { "file": "src/application/index.ts", "line": 4 }
+      ]
+    }
+  ],
+  "coChanges": [
+    { "moduleA": "app/Domain", "moduleB": "src/domain", "together": 9, "total": 10 }
+  ],
+  "delegations": [
+    { "module": "src/infrastructure", "forwards": 6, "methods": 8 }
+  ],
+  "messageChains": [
+    { "file": "src/application/index.ts", "line": 7, "length": 4 }
+  ],
+  "abstractions": [
+    { "name": "Repo", "file": "src/domain/index.ts", "line": 3, "implementors": 1 }
+  ],
+  "complexity": [
+    { "function": "handle", "file": "src/infrastructure/index.ts", "line": 9, "complexity": 15 }
+  ]
+}
