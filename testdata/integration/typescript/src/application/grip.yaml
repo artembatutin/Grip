@@ -1,0 +1,5 @@
+module: application
+architecture:
+  facade: [PlaceOrder]
+  dependencies: { allow: [src/domain] }
+  cycles: forbid

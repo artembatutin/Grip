@@ -1,0 +1,11 @@
+version: 1
+planes:
+  architecture: { enabled: true }
+languages:
+  typescript:
+    roots: ["src"]
+    tool: { name: dependency-cruiser, minVersion: "18.0.0" }
+modules: { granularity: directory }
+gate:
+  local: { planes: [architecture] }
+  ci: { planes: [architecture] }
