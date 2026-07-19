@@ -68,15 +68,24 @@ try {
   process.exit(2);
 }
 
-let Project, SyntaxKind, ModuleResolutionKind, ts;
+let Project, SyntaxKind, ModuleResolutionKind, ts, tsMorphRequire;
 try {
   let mod;
   try {
-    mod = createRequire(join(repoRoot, "package.json"))("ts-morph");
+    tsMorphRequire = createRequire(join(repoRoot, "package.json"));
+    mod = tsMorphRequire("ts-morph");
   } catch {
-    const npm = spawnSync("npm", ["root", "-g"], { cwd: repoRoot, encoding: "utf8" });
-    if (npm.status !== 0) throw new Error("npm global root unavailable");
-    mod = createRequire(join(npm.stdout.trim(), "package.json"))("ts-morph");
+    try {
+      // When dependency-cruiser came from a project-local installation, its
+      // .bin directory resolves siblings from that same node_modules tree.
+      tsMorphRequire = createRequire(join(dirname(depcruise), "package.json"));
+      mod = tsMorphRequire("ts-morph");
+    } catch {
+      const npm = spawnSync("npm", ["root", "-g"], { cwd: repoRoot, encoding: "utf8" });
+      if (npm.status !== 0) throw new Error("npm global root unavailable");
+      tsMorphRequire = createRequire(join(npm.stdout.trim(), "package.json"));
+      mod = tsMorphRequire("ts-morph");
+    }
   }
   ({ Project, SyntaxKind, ModuleResolutionKind, ts } = mod);
 } catch (e) {
@@ -208,8 +217,8 @@ for (const sf of project.getSourceFiles()) {
 
 let tsMorphVersion = "unknown";
 try {
-  const pkgPath = createRequire(join(repoRoot, "package.json")).resolve("ts-morph/package.json");
-  tsMorphVersion = createRequire(join(repoRoot, "package.json"))(pkgPath).version || "unknown";
+  const pkgPath = tsMorphRequire.resolve("ts-morph/package.json");
+  tsMorphVersion = tsMorphRequire(pkgPath).version || "unknown";
 } catch {}
 
 importsOut.sort((a, b) => `${a.fromFile}\0${a.toFile}\0${a.symbol}\0${a.line}`.localeCompare(`${b.fromFile}\0${b.toFile}\0${b.symbol}\0${b.line}`));
