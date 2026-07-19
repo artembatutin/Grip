@@ -4,7 +4,10 @@
 
 Grip lets you declare small **intent** at your module boundaries, **derives** the real structure from code, and **gates** any change that moves the system's shape without your consent. An agent physically cannot introduce an illegal dependency, widen a module's facade, create a dependency cycle, reach into another module's internals, or violate layer direction — in **PHP or TypeScript/JS** — without a red build. You review the *shape delta*, not the lines.
 
-> This repository is **M0**: the shared engine + the **Architecture plane**. See [`plan/`](plan/) for the full roadmap and [`reqs/`](reqs/) for the product and control-plane specs.
+Grip is a single binary. Its first-party TypeScript and PHP helpers are embedded
+and extracted to a content-addressed user cache at runtime, so consumer
+repositories never copy `ci/helpers`. The helper source remains visible in this
+repository for auditability.
 
 ## Why
 
@@ -23,12 +26,22 @@ Derivers **wrap existing analyzers** (dependency-cruiser + ts-morph for TS; dept
 ## Install / build
 
 ```sh
+# release archive: unpack and put grip on PATH
+# source checkout:
 make build        # -> bin/grip
-make check        # build + vet + gofmt + lint + test  (the pre-commit bar)
-make acceptance   # the M0 exit gate: full fixture matrix + determinism
+make check        # build + vet + gofmt + lint + test
+make acceptance   # deterministic fixture matrix
 ```
 
-Requires Go 1.26+. For real analysis you also need Node + `dependency-cruiser`/`ts-morph` and PHP + `deptrac`/`nikic/php-parser` (see [`ci/helpers`](ci/helpers)). Tests and the acceptance harness run fully offline against recorded analyzer reports.
+Requires Go 1.26+ only to build from source. A real TypeScript/JavaScript gate
+requires Node, `dependency-cruiser`, and `ts-morph`; PHP requires PHP, Deptrac,
+and `nikic/php-parser`. Grip validates the actual analyzer identity and version
+before it constructs an IR. Missing or incompatible tooling exits `2`.
+
+For a complete field reference, examples, baseline workflow, and supported
+surface, see [configuration](docs/configuration.md) and
+[limitations](docs/limitations.md). The design and original requirements are
+versioned under [plan](plan/) and [reqs](reqs/).
 
 ## Configure
 
@@ -39,8 +52,8 @@ version: 1
 planes:
   architecture: { enabled: true }
 languages:
-  typescript: { roots: ["src"], tool: { name: dependency-cruiser } }
-  php:         { roots: ["app"], tool: { name: deptrac } }
+  typescript: { roots: ["src"], tool: { name: dependency-cruiser, minVersion: "16.0.0" } }
+  php:         { roots: ["app"], tool: { name: deptrac, minVersion: "2.0.0" } }
 policy:
   layers: { order: [domain, application, infrastructure] }
 gate:
@@ -71,7 +84,8 @@ grip gate --plane architecture --sarif > grip.sarif
 grip modules                  # governed vs ungoverned
 grip derive                   # dump the Common Graph IR (debug)
 grip diff                     # shape delta vs the ratified baseline
-grip init --write             # scaffold draft grip.yaml manifests from current code
+grip init                     # dry-run a .grip.yaml plus draft manifests (works without existing config)
+grip init --write             # write only absent draft files
 grip ratify                   # accept current derived state as the baseline
 grip version
 ```
@@ -91,11 +105,16 @@ grip version
 
 A rule whose evidence lands in a reduced/none-confidence scope (dynamic `import()`, `call_user_func($x)`, reflection) emits a **"cannot verify — blocked"** result instead of a false pass.
 
-## CI integrations
+## CI integrations and releases
 
-- **GitHub Action:** [`ci/github-action`](ci/github-action) — runs the gate, uploads SARIF for inline annotations.
+- **GitHub Action:** [`ci/github-action`](ci/github-action) — installs a pinned
+  Grip release, provisions pinned analyzers, runs the gate, and uploads SARIF.
 - **GitLab template:** [`ci/gitlab/.gitlab-ci.yml`](ci/gitlab/.gitlab-ci.yml).
 - **Pre-commit:** [`ci/hooks/pre-commit`](ci/hooks/pre-commit) and [`.pre-commit-hooks.yaml`](.pre-commit-hooks.yaml).
+
+Release archives are produced by [GoReleaser](.goreleaser.yaml) for macOS and
+Linux (amd64/arm64), with a version stamped into the binary and a checksum file.
+Do not pin production automation to `main`.
 
 ## License
 

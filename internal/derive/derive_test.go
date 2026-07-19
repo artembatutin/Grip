@@ -1,7 +1,11 @@
 package derive
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
+
+	"github.com/artembatutin/grip/internal/plane"
 )
 
 // TestNormalizeGolden checks the report→IR normalization against a hand-verified
@@ -67,6 +71,41 @@ func TestNormalizeGolden(t *testing.T) {
 	g2, _ := Normalize("typescript", rep, []string{"src/app", "src/domain"}, moduleOf, filesOf)
 	if g.Hash() != g2.Hash() {
 		t.Fatal("normalization not deterministic under reordered module ids")
+	}
+}
+
+type reportRunner struct{ payload []byte }
+
+func (r reportRunner) Run(context.Context, string, []string, []byte) ([]byte, error) {
+	return r.payload, nil
+}
+func (r reportRunner) Version(context.Context, string) (string, error) { return "test", nil }
+
+func TestRunHelperEnforcesConfiguredNameAndMinimum(t *testing.T) {
+	rep := AnalyzerReport{Tool: AnalyzerInfo{Name: "dependency-cruiser", Version: "16.3.0"}, SurfaceTool: AnalyzerInfo{Name: "ts-morph", Version: "24.0.0"}}
+	payload, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := plane.DeriveServices{Tools: reportRunner{payload}, ModuleOf: func(string) string { return "" }, FilesOf: func(string) []string { return nil }}
+	if _, err := RunHelper(context.Background(), "typescript", "typescript", plane.LanguageSpec{Tool: plane.ToolSpec{Name: "dependency-cruiser", MinVersion: "16.4.0"}}, svc, nil); err == nil {
+		t.Fatal("old analyzer version passed")
+	}
+	if _, err := RunHelper(context.Background(), "typescript", "typescript", plane.LanguageSpec{Tool: plane.ToolSpec{Name: "deptrac"}}, svc, nil); err == nil {
+		t.Fatal("different configured analyzer passed")
+	}
+}
+
+func TestValidateReportRejectsUnknownConfidenceAndMalformedEvidence(t *testing.T) {
+	base := AnalyzerReport{Tool: AnalyzerInfo{Name: "dependency-cruiser", Version: "16.3.0"}, SurfaceTool: AnalyzerInfo{Name: "ts-morph", Version: "24.0.0"}}
+	base.Reduced = []ReducedRec{{File: "src/a.ts", Reason: "dynamic", Level: "maybe"}}
+	if err := ValidateReport("typescript", plane.ToolSpec{Name: "dependency-cruiser"}, &base); err == nil {
+		t.Fatal("unknown confidence passed")
+	}
+	base.Reduced = nil
+	base.Imports = []ImportRec{{FromFile: "src/a.ts", ToFile: "src/b.ts", Symbol: "B", Line: 0, Kind: "import"}}
+	if err := ValidateReport("typescript", plane.ToolSpec{Name: "dependency-cruiser"}, &base); err == nil {
+		t.Fatal("line-zero evidence passed")
 	}
 }
 

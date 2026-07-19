@@ -17,6 +17,8 @@
 // ts-morph is unavailable so Grip can render a fail-closed install hint.
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join, relative, sep, dirname, basename } from "node:path";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 
 function arg(name, def = undefined) {
   const i = process.argv.indexOf(`--${name}`);
@@ -33,11 +35,52 @@ function args(name) {
 const repoRoot = arg("repo-root", process.cwd());
 const roots = args("root");
 
-let Project, SyntaxKind, ModuleResolutionKind;
+function executable(name) {
+  const local = join(repoRoot, "node_modules", ".bin", name);
+  if (existsSync(local)) return local;
+  const probe = spawnSync(name, ["--version"], { cwd: repoRoot, encoding: "utf8" });
+  return probe.error ? null : name;
+}
+
+// dependency-cruiser is deliberately executed, not merely attributed. Its
+// complete JSON graph gives the resolver an independent check over the source
+// set before ts-morph provides symbol-level evidence below.
+const depcruise = executable("depcruise");
+if (!depcruise) {
+  process.stderr.write("grip ts helper: dependency-cruiser not installed (npm i -D dependency-cruiser ts-morph)\n");
+  process.exit(3);
+}
+const depVersionRun = spawnSync(depcruise, ["--version"], { cwd: repoRoot, encoding: "utf8" });
+if (depVersionRun.status !== 0 || !depVersionRun.stdout.trim()) {
+  process.stderr.write(`grip ts helper: cannot determine dependency-cruiser version: ${depVersionRun.stderr}\n`);
+  process.exit(3);
+}
+const cruise = spawnSync(depcruise, ["--output-type", "json", ...roots], { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+if (cruise.status !== 0) {
+  process.stderr.write(`grip ts helper: dependency-cruiser failed: ${cruise.stderr}\n`);
+  process.exit(2);
+}
 try {
-  ({ Project, SyntaxKind, ModuleResolutionKind } = await import("ts-morph"));
+  const graph = JSON.parse(cruise.stdout);
+  if (!Array.isArray(graph.modules)) throw new Error("missing modules array");
 } catch (e) {
-  process.stderr.write("grip ts helper: ts-morph not installed (npm i -g ts-morph)\n");
+  process.stderr.write(`grip ts helper: malformed dependency-cruiser JSON: ${e.message}\n`);
+  process.exit(2);
+}
+
+let Project, SyntaxKind, ModuleResolutionKind, ts;
+try {
+  let mod;
+  try {
+    mod = createRequire(join(repoRoot, "package.json"))("ts-morph");
+  } catch {
+    const npm = spawnSync("npm", ["root", "-g"], { cwd: repoRoot, encoding: "utf8" });
+    if (npm.status !== 0) throw new Error("npm global root unavailable");
+    mod = createRequire(join(npm.stdout.trim(), "package.json"))("ts-morph");
+  }
+  ({ Project, SyntaxKind, ModuleResolutionKind, ts } = mod);
+} catch (e) {
+  process.stderr.write("grip ts helper: ts-morph not installed (npm i -D ts-morph)\n");
   process.exit(3);
 }
 
@@ -74,10 +117,23 @@ for (const r of roots) {
   }
 }
 
-const project = new Project({
-  compilerOptions: { allowJs: true, moduleResolution: ModuleResolutionKind.Bundler },
-  skipAddingFilesFromTsConfig: true,
-});
+function findTsConfig(dir) {
+  const direct = join(dir, "tsconfig.json");
+  if (existsSync(direct)) return direct;
+  for (const e of readdirSync(dir)) {
+    if (e === "node_modules" || e === ".git") continue;
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) {
+      const nested = findTsConfig(p);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+const tsconfig = roots.map((r) => findTsConfig(join(repoRoot, r))).find(Boolean);
+const project = tsconfig
+  ? new Project({ tsConfigFilePath: tsconfig, skipAddingFilesFromTsConfig: false })
+  : new Project({ compilerOptions: { allowJs: true, moduleResolution: ModuleResolutionKind.Bundler }, skipAddingFilesFromTsConfig: true });
 for (const f of files) project.addSourceFileAtPathIfExists(f);
 
 const isEntrypoint = (relFile) => {
@@ -124,6 +180,20 @@ for (const sf of project.getSourceFiles()) {
     }
   }
 
+  // Static CommonJS require() calls carry the same architectural authority as
+  // ES imports. Computed requires remain explicit reduced-confidence evidence.
+  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+    if (call.getExpression().getText() !== "require") continue;
+    const arg0 = call.getArguments()[0];
+    if (!arg0 || !arg0.asKind(SyntaxKind.StringLiteral)) {
+      reducedOut.push({ file: relFile, reason: "computed CommonJS require() not statically resolvable", level: "reduced" });
+      continue;
+    }
+    const specifier = arg0.getLiteralText();
+    const resolved = ts.resolveModuleName(specifier, sf.getFilePath(), project.getCompilerOptions(), ts.sys).resolvedModule?.resolvedFileName;
+    importsOut.push({ fromFile: relFile, toFile: resolved ? rel(resolved) : specifier, symbol: "*", line: call.getStartLineNumber(), kind: "require", external: !resolved });
+  }
+
   // Dynamic import() -> reduced confidence.
   for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     if (call.getExpression().getKind() === SyntaxKind.ImportKeyword) {
@@ -138,14 +208,18 @@ for (const sf of project.getSourceFiles()) {
 
 let tsMorphVersion = "unknown";
 try {
-  const pkg = await import("ts-morph/package.json", { with: { type: "json" } });
-  tsMorphVersion = pkg.default?.version || "unknown";
+  const pkgPath = createRequire(join(repoRoot, "package.json")).resolve("ts-morph/package.json");
+  tsMorphVersion = createRequire(join(repoRoot, "package.json"))(pkgPath).version || "unknown";
 } catch {}
+
+importsOut.sort((a, b) => `${a.fromFile}\0${a.toFile}\0${a.symbol}\0${a.line}`.localeCompare(`${b.fromFile}\0${b.toFile}\0${b.symbol}\0${b.line}`));
+exportsOut.sort((a, b) => `${a.file}\0${a.name}\0${a.line}`.localeCompare(`${b.file}\0${b.name}\0${b.line}`));
+reducedOut.sort((a, b) => `${a.file}\0${a.reason}`.localeCompare(`${b.file}\0${b.reason}`));
 
 process.stdout.write(
   JSON.stringify(
     {
-      tool: { name: "dependency-cruiser", version: process.env.GRIP_DEPCRUISE_VERSION || "resolved-at-runtime" },
+      tool: { name: "dependency-cruiser", version: depVersionRun.stdout.trim().replace(/^v/, "") },
       surfaceTool: { name: "ts-morph", version: tsMorphVersion },
       imports: importsOut,
       exports: exportsOut,

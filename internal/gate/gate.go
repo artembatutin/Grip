@@ -86,14 +86,15 @@ func Run(ctx context.Context, cfg *config.Config, reg *plane.Registry, opts Opti
 	}
 
 	svc := plane.DeriveServices{
-		Commit:     commit,
-		RepoRoot:   repoRoot,
-		Tools:      opts.Tools,
-		ModuleOf:   disc.ModuleForFile,
-		FilesOf:    disc.FilesOf,
-		Languages:  cfg.LanguageSpecs(),
-		Layers:     append([]string(nil), cfg.Policy.Layers.Order...),
-		Ungoverned: disc.UngovernedIDs(),
+		Commit:       commit,
+		RepoRoot:     repoRoot,
+		Tools:        opts.Tools,
+		ModuleOf:     disc.ModuleForFile,
+		FilesOf:      disc.FilesOf,
+		Languages:    cfg.LanguageSpecs(),
+		Layers:       append([]string(nil), cfg.Policy.Layers.Order...),
+		Ungoverned:   disc.UngovernedIDs(),
+		UngovernedOf: disc.UngovernedForFile,
 	}
 
 	out := &Outcome{

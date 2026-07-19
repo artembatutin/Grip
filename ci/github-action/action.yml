@@ -18,9 +18,9 @@ inputs:
     required: false
     default: ""
   grip-version:
-    description: "Grip version/ref to build"
+    description: "Pinned Grip release version (for example v0.2.0)"
     required: false
-    default: "main"
+    default: "v0.2.0"
 runs:
   using: "composite"
   steps:
@@ -40,27 +40,32 @@ runs:
       shell: bash
       run: |
         if [ -z "${{ inputs.analysis-dir }}" ]; then
-          npm i -g dependency-cruiser ts-morph || true
-          composer global require qossmic/deptrac nikic/php-parser || true
+          npm i -g dependency-cruiser@16.10.0 ts-morph@24.0.0
+          composer global require deptrac/deptrac:^4.0 nikic/php-parser:^5.0
+          echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
         fi
-    - name: Build grip
+    - name: Install Grip release
       shell: bash
       run: |
-        go install "github.com/artembatutin/grip/cmd/grip@${{ inputs.grip-version }}" || \
-          (git clone --depth 1 --branch "${{ inputs.grip-version }}" https://github.com/artembatutin/grip /tmp/grip && \
-           cd /tmp/grip && go build -o "$RUNNER_TEMP/grip" ./cmd/grip && echo "$RUNNER_TEMP" >> "$GITHUB_PATH")
+        GOBIN="$RUNNER_TEMP/grip-bin" go install "github.com/artembatutin/grip/cmd/grip@${{ inputs.grip-version }}"
+        echo "$RUNNER_TEMP/grip-bin" >> "$GITHUB_PATH"
     - name: Run grip gate
       id: gate
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
         set +e
-        FLAGS="--ci --sarif"
-        if [ -n "${{ inputs.analysis-dir }}" ]; then FLAGS="$FLAGS --analysis-dir ${{ inputs.analysis-dir }}"; fi
-        grip gate $FLAGS > grip.sarif
-        echo "exit=$?" >> "$GITHUB_OUTPUT"
+        set -- --ci --sarif
+        if [ -n "${{ inputs.analysis-dir }}" ]; then set -- "$@" --analysis-dir "${{ inputs.analysis-dir }}"; fi
+        grip gate "$@" > grip.sarif
+        code=$?
+        echo "exit=$code" >> "$GITHUB_OUTPUT"
         # Human summary to the job log (re-run without --sarif).
-        grip gate --ci ${{ inputs.analysis-dir && format('--analysis-dir {0}', inputs.analysis-dir) || '' }} || true
+        if [ -n "${{ inputs.analysis-dir }}" ]; then
+          grip gate --ci --analysis-dir "${{ inputs.analysis-dir }}" || true
+        else
+          grip gate --ci || true
+        fi
     - name: Upload SARIF
       if: always()
       uses: github/codeql-action/upload-sarif@v3

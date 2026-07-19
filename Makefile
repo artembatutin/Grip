@@ -4,6 +4,7 @@
 
 GO        ?= go
 BIN       ?= bin/grip
+VERSION   ?= devel
 PKG       := ./...
 # The module cache in some sandboxes is read-only; disabling the sumdb avoids a
 # spurious network write. Real environments can drop this.
@@ -14,12 +15,12 @@ GOENV     := GOFLAGS=-mod=mod GOSUMDB=off
 all: check
 
 build:
-	$(GOENV) $(GO) build -trimpath -o $(BIN) ./cmd/grip
+	$(GOENV) $(GO) build -trimpath -ldflags "-X github.com/artembatutin/grip/internal/cli.Version=$(VERSION)" -o $(BIN) ./cmd/grip
 	@echo "built $(BIN)"
 
 # Static single binary (CGO off), the D1 distribution shape.
 install:
-	CGO_ENABLED=0 $(GOENV) $(GO) install -trimpath ./cmd/grip
+	CGO_ENABLED=0 $(GOENV) $(GO) install -trimpath -ldflags "-X github.com/artembatutin/grip/internal/cli.Version=$(VERSION)" ./cmd/grip
 
 check: build vet fmt-check lint test
 	@echo "make check: OK"

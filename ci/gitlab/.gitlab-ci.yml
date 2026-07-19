@@ -10,16 +10,17 @@
 # blocks show inline on the MR.
 
 .grip-gate:
-  image: golang:1.26
+  image: golang:1.26-bookworm
   variables:
-    GRIP_VERSION: "main"
+    GRIP_VERSION: "v0.2.0"
     GRIP_WORKDIR: "."
     # Set GRIP_ANALYSIS_DIR to run offline against recorded analyzer reports.
     GRIP_ANALYSIS_DIR: ""
   before_script:
-    - apt-get update -qq && apt-get install -y -qq nodejs npm php-cli git >/dev/null
-    - if [ -z "$GRIP_ANALYSIS_DIR" ]; then npm i -g dependency-cruiser ts-morph || true; fi
-    - go install "github.com/artembatutin/grip/cmd/grip@${GRIP_VERSION}"
+    - apt-get update -qq && apt-get install -y -qq nodejs npm php-cli composer git >/dev/null
+    - if [ -z "$GRIP_ANALYSIS_DIR" ]; then npm i -g dependency-cruiser@16.10.0 ts-morph@24.0.0; composer global require deptrac/deptrac:^4.0 nikic/php-parser:^5.0; fi
+    - export PATH="$(composer global config bin-dir --absolute):$PATH"
+    - GOBIN=/usr/local/bin go install "github.com/artembatutin/grip/cmd/grip@${GRIP_VERSION}"
   script:
     - cd "$GRIP_WORKDIR"
     - |

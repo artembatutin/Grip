@@ -34,6 +34,62 @@ function grip_arg(string $name, ?string $def = null): ?string {
 $repoRoot = grip_arg('repo-root', getcwd());
 $roots = grip_arg_all('root');
 
+function grip_executable(string $name, string $repoRoot): ?string {
+    $home = getenv('HOME') ?: '';
+    $candidates = [$repoRoot . '/vendor/bin/' . $name, $home . '/.config/composer/vendor/bin/' . $name, $home . '/.composer/vendor/bin/' . $name];
+    foreach (explode(PATH_SEPARATOR, getenv('PATH') ?: '') as $dir) {
+        if ($dir !== '') $candidates[] = $dir . DIRECTORY_SEPARATOR . $name;
+    }
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) && is_executable($candidate)) return $candidate;
+    }
+    return null;
+}
+function grip_run(array $command, string $cwd): array {
+    $pipes = [];
+    $p = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd);
+    if (!is_resource($p)) return [127, '', 'could not start process'];
+    $stdout = stream_get_contents($pipes[1]); fclose($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]); fclose($pipes[2]);
+    return [proc_close($p), $stdout, $stderr];
+}
+
+// Deptrac must genuinely analyse the configured source set before this helper
+// identifies it in Grip output. A temporary permissive configuration lets Grip
+// obtain Deptrac's parser/resolution evidence without imposing a second policy;
+// Grip's manifest is the policy authority.
+$deptrac = grip_executable('deptrac', $repoRoot);
+if (!$deptrac) {
+    fwrite(STDERR, "grip php helper: deptrac not installed (composer require --dev deptrac/deptrac nikic/php-parser)\n");
+    exit(3);
+}
+[$versionStatus, $deptracVersion, $versionErr] = grip_run([$deptrac, '--version'], $repoRoot);
+if ($versionStatus !== 0 || trim($deptracVersion) === '') {
+    fwrite(STDERR, "grip php helper: cannot determine deptrac version: $versionErr\n");
+    exit(3);
+}
+$tempConfig = tempnam(sys_get_temp_dir(), 'grip-deptrac-');
+if (!$tempConfig) { fwrite(STDERR, "grip php helper: cannot create temporary deptrac config\n"); exit(2); }
+$paths = [];
+foreach ($roots as $root) {
+    $absolute = $repoRoot . '/' . $root;
+    if (is_dir($absolute)) $paths[] = str_replace('\\', '/', $absolute);
+}
+$yaml = "deptrac:\n  paths:\n";
+foreach ($paths as $path) $yaml .= "    - '" . str_replace("'", "''", $path) . "'\n";
+$yaml .= "  analyser:\n    types: [class, use, function, function_call]\n  layers:\n    - name: GripAll\n      collectors:\n        - type: classLike\n          value: '.*'\n  ruleset:\n    GripAll: ['+GripAll']\n";
+file_put_contents($tempConfig, $yaml);
+[$deptracStatus, $deptracJSON, $deptracErr] = grip_run([$deptrac, 'analyse', '--config-file=' . $tempConfig, '--formatter=json', '--no-cache'], $repoRoot);
+@unlink($tempConfig);
+if ($deptracStatus !== 0) {
+    fwrite(STDERR, "grip php helper: deptrac analysis failed: $deptracErr\n");
+    exit(2);
+}
+if (!is_array(json_decode($deptracJSON, true))) {
+    fwrite(STDERR, "grip php helper: deptrac produced malformed JSON\n");
+    exit(2);
+}
+
 // Locate a php-parser autoloader (global or local composer).
 $autoloads = [
     getenv('HOME') . '/.composer/vendor/autoload.php',
@@ -161,7 +217,7 @@ if (class_exists(\Composer\InstalledVersions::class)) {
 }
 
 echo json_encode([
-    'tool' => ['name' => 'deptrac', 'version' => getenv('GRIP_DEPTRAC_VERSION') ?: 'resolved-at-runtime'],
+    'tool' => ['name' => 'deptrac', 'version' => ltrim(trim($deptracVersion), 'v')],
     'surfaceTool' => ['name' => 'php-parser', 'version' => $parserVersion],
     'imports' => $imports,
     'exports' => $exports,

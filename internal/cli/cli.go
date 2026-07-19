@@ -22,9 +22,9 @@ import (
 	"github.com/artembatutin/grip/internal/plane/testrigor"
 )
 
-// Version is Grip's release version, printed by `grip version` and stamped into
-// reports for reproducibility.
-const Version = "0.1.0-m0"
+// Version is set once by the release build with -ldflags and is printed by
+// `grip version` and stamped into reports for reproducibility.
+var Version = "devel"
 
 // exit codes shared with the gate.
 const (
@@ -142,11 +142,10 @@ func toolRunner(repoRoot, analysisDir string) plane.ToolRunner {
 	if analysisDir != "" {
 		return &derive.RecordedRunner{AnalysisDir: analysisDir}
 	}
-	helperDir := os.Getenv("GRIP_HELPER_DIR")
-	if helperDir == "" {
-		helperDir = filepath.Join(repoRoot, ".grip", "helpers")
-	}
-	return &derive.ExecRunner{HelperDir: helperDir, RepoRoot: repoRoot}
+	// ExecRunner resolves GRIP_HELPER_DIR itself, otherwise materializing the
+	// embedded assets into a content-addressed user cache. Never fall back to a
+	// consumer checkout: installed Grip must work in a read-only nested directory.
+	return &derive.ExecRunner{RepoRoot: repoRoot}
 }
 
 // cwd returns the working directory or ".".

@@ -10,8 +10,12 @@ set -euo pipefail
 
 GRIP="${GRIP_BIN:-grip}"
 if ! command -v "$GRIP" >/dev/null 2>&1; then
-  echo "grip: binary not found on PATH (set GRIP_BIN or install grip). Skipping local gate." >&2
-  exit 0
+  if [ "${GRIP_ALLOW_MISSING:-0}" = "1" ]; then
+    echo "grip: binary not found; GRIP_ALLOW_MISSING=1 explicitly skipped the local preview." >&2
+    exit 0
+  fi
+  echo "grip: binary not found on PATH (set GRIP_BIN or install Grip); refusing to skip a governed gate." >&2
+  exit 2
 fi
 
 # Local, incremental mode over the changed working tree.

@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/artembatutin/grip/ci/helpers"
 	"github.com/artembatutin/grip/internal/ir"
 	"github.com/artembatutin/grip/internal/plane"
+	"github.com/artembatutin/grip/internal/toolversion"
 )
 
 // Deriver produces the IR for one language by invoking that language's bundled
@@ -38,7 +40,66 @@ func RunHelper(ctx context.Context, helperName, language string, spec plane.Lang
 	if err := json.Unmarshal(out, &rep); err != nil {
 		return nil, fmt.Errorf("%s deriver: parse analyzer report: %w", language, err)
 	}
-	return Normalize(language, &rep, moduleIDs, svc.ModuleOf, svc.FilesOf)
+	if err := ValidateReport(language, spec.Tool, &rep); err != nil {
+		return nil, err
+	}
+	return Normalize(language, &rep, moduleIDs, svc.ModuleOf, svc.FilesOf, svc.UngovernedOf)
+}
+
+// ValidateReport rejects incomplete or self-contradictory helper output before
+// it reaches the deterministic IR. In particular, a helper cannot claim a
+// configured analyzer it did not actually run, and unknown confidence is never
+// silently downgraded into a passable result.
+func ValidateReport(language string, configured plane.ToolSpec, rep *AnalyzerReport) error {
+	if rep == nil {
+		return fmt.Errorf("%s deriver: empty analyzer report", language)
+	}
+	if configured.Name == "" {
+		return fmt.Errorf("%s deriver: analyzer is not configured", language)
+	}
+	if rep.Tool.Name != configured.Name {
+		return fmt.Errorf("%s deriver: configured analyzer %q but helper reported %q", language, configured.Name, rep.Tool.Name)
+	}
+	if _, err := toolversion.Parse(rep.Tool.Version); err != nil {
+		return fmt.Errorf("%s deriver: analyzer %q returned an unverifiable version %q: %w", language, rep.Tool.Name, rep.Tool.Version, err)
+	}
+	if configured.MinVersion != "" {
+		actual, _ := toolversion.Parse(rep.Tool.Version)
+		minimum, err := toolversion.Parse(configured.MinVersion)
+		if err != nil {
+			return fmt.Errorf("%s deriver: invalid minimum version %q: %w", language, configured.MinVersion, err)
+		}
+		if toolversion.Compare(actual, minimum) < 0 {
+			return fmt.Errorf("%s deriver: analyzer %q version %s is below required minimum %s", language, rep.Tool.Name, rep.Tool.Version, configured.MinVersion)
+		}
+	}
+	if rep.SurfaceTool.Name == "" || rep.SurfaceTool.Version == "" {
+		return fmt.Errorf("%s deriver: missing surface analyzer identity", language)
+	}
+	for _, im := range rep.Imports {
+		if im.FromFile == "" || im.ToFile == "" || im.Symbol == "" || im.Line < 1 {
+			return fmt.Errorf("%s deriver: malformed import evidence", language)
+		}
+		switch im.Kind {
+		case "", "import", "require", "re-export", "call", "extends", "implements", "trait-use", "static-reference", "constructor-type":
+		default:
+			return fmt.Errorf("%s deriver: unknown edge kind %q", language, im.Kind)
+		}
+	}
+	for _, ex := range rep.Exports {
+		if ex.File == "" || ex.Name == "" || ex.Kind == "" || ex.Line < 1 {
+			return fmt.Errorf("%s deriver: malformed export evidence", language)
+		}
+	}
+	for _, reduced := range rep.Reduced {
+		if reduced.File == "" || reduced.Reason == "" {
+			return fmt.Errorf("%s deriver: malformed reduced-confidence evidence", language)
+		}
+		if reduced.Level != "" && reduced.Level != string(ir.LevelReduced) && reduced.Level != string(ir.LevelNone) {
+			return fmt.Errorf("%s deriver: unknown confidence level %q", language, reduced.Level)
+		}
+	}
+	return nil
 }
 
 // helperArgs builds the argument list passed to a helper: the repo root and the
@@ -51,10 +112,9 @@ func helperArgs(spec plane.LanguageSpec, svc plane.DeriveServices) []string {
 	return args
 }
 
-// ExecRunner is the production ToolRunner: it runs the bundled helper scripts as
-// subprocesses. It is best-effort and not exercised by the offline test suite
-// (which uses RecordedRunner); it exists so a real run works where node/php and
-// the analyzers are installed.
+// ExecRunner is the production ToolRunner. It runs the first-party helper assets
+// embedded in every Grip binary (or an explicit GRIP_HELPER_DIR override), so a
+// consumer repository never needs to carry copied helper scripts.
 type ExecRunner struct {
 	// HelperDir holds the bundled helper scripts (ts.mjs, php.php).
 	HelperDir string
@@ -64,12 +124,20 @@ type ExecRunner struct {
 
 // helperRuntime maps a logical helper to its runtime binary and script.
 func (r *ExecRunner) helperRuntime(name string) (bin, script, installHint string, ok bool) {
+	dir := r.HelperDir
+	if dir == "" {
+		var err error
+		dir, err = helpers.Directory()
+		if err != nil {
+			return "", "", err.Error(), true
+		}
+	}
 	switch name {
 	case "typescript":
-		return "node", filepath.Join(r.HelperDir, "ts.mjs"),
+		return "node", filepath.Join(dir, "ts.mjs"),
 			"install Node.js and run `npm i -g dependency-cruiser` (+ ts-morph in the helper)", true
 	case "php":
-		return "php", filepath.Join(r.HelperDir, "php.php"),
+		return "php", filepath.Join(dir, "php.php"),
 			"install PHP and `composer global require qossmic/deptrac nikic/php-parser`", true
 	default:
 		return "", "", "", false
@@ -82,6 +150,12 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args []string, stdin 
 	if !ok {
 		return nil, fmt.Errorf("derive: unknown helper %q", name)
 	}
+	if script == "" {
+		return nil, &plane.ToolMissingError{Tool: name + " helper", Hint: hint}
+	}
+	if info, err := os.Stat(script); err != nil || info.IsDir() {
+		return nil, &plane.ToolMissingError{Tool: name + " helper", Hint: "embedded helper unavailable at " + script + "; unset GRIP_HELPER_DIR or reinstall Grip"}
+	}
 	if _, err := exec.LookPath(bin); err != nil {
 		return nil, &plane.ToolMissingError{Tool: bin, Hint: hint}
 	}
@@ -89,13 +163,13 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args []string, stdin 
 	cmd := exec.CommandContext(ctx, bin, full...)
 	cmd.Dir = r.RepoRoot
 	cmd.Stdin = strings.NewReader(string(stdin))
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		var ee *exec.ExitError
 		if ok := asExit(err, &ee); ok && ee.ExitCode() == toolMissingExit {
 			return nil, &plane.ToolMissingError{Tool: name, Hint: hint}
 		}
-		return nil, fmt.Errorf("derive: helper %q failed: %w", name, err)
+		return nil, fmt.Errorf("derive: helper %q failed: %w: %s", name, err, strings.TrimSpace(string(out)))
 	}
 	return out, nil
 }
@@ -103,6 +177,19 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args []string, stdin 
 // Version returns the resolved version of a runtime; helpers embed analyzer
 // versions in their report, so this is only used for the runtime itself.
 func (r *ExecRunner) Version(ctx context.Context, name string) (string, error) {
+	// Analyzer probes are separate from helper runtimes. Keeping them here means
+	// `grip version` reports facts discovered on this machine, never configured
+	// labels masquerading as versions.
+	if bin, args, ok := analyzerVersionCommand(name); ok {
+		if _, err := exec.LookPath(bin); err != nil {
+			return "", &plane.ToolMissingError{Tool: bin, Hint: "install the configured analyzer " + name}
+		}
+		out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("derive: resolve %s version: %w: %s", name, err, strings.TrimSpace(string(out)))
+		}
+		return strings.TrimSpace(string(out)), nil
+	}
 	bin, _, _, ok := r.helperRuntime(name)
 	if !ok {
 		return "", fmt.Errorf("derive: unknown helper %q", name)
@@ -112,6 +199,21 @@ func (r *ExecRunner) Version(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func analyzerVersionCommand(name string) (string, []string, bool) {
+	switch name {
+	case "dependency-cruiser":
+		return "depcruise", []string{"--version"}, true
+	case "deptrac":
+		return "deptrac", []string{"--version"}, true
+	case "stryker":
+		return "stryker", []string{"--version"}, true
+	case "infection":
+		return "infection", []string{"--version"}, true
+	default:
+		return "", nil, false
+	}
 }
 
 // toolMissingExit is the exit code a helper uses to signal "my analyzer isn't

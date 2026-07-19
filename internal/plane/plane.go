@@ -161,6 +161,10 @@ type DeriveServices struct {
 	// so Reconcile can tell "declared dependency on a module whose manifest is
 	// missing" (fail-closed) from "declared dependency on nothing" (stale).
 	Ungoverned []string
+	// UngovernedOf returns the ungoverned module owning a repo-relative file, or
+	// "". It lets derivers distinguish an explicitly discovered missing manifest
+	// from a genuinely unresolved internal dependency.
+	UngovernedOf func(relFile string) string
 }
 
 // ToolRunner abstracts running an external analyzer subprocess. The real

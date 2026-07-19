@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/artembatutin/grip/ci/helpers"
 	"github.com/artembatutin/grip/internal/config"
 	"github.com/artembatutin/grip/internal/diff"
 	"github.com/artembatutin/grip/internal/gate"
@@ -34,13 +35,31 @@ func (a *App) cmdVersion(args []string) int {
 	}
 	fmt.Fprintf(a.Stdout, "grip %s\n", Version)
 	fmt.Fprintf(a.Stdout, "ir schema: %s\n", ir.Version)
+	fmt.Fprintf(a.Stdout, "helpers: %s\n", helpers.Identity())
 	// Analyzer versions are resolved per run and captured in the IR/report; the
 	// configured tools are shown when a repo config is reachable.
 	if root, err := resolveRepoRoot(cwd()); err == nil {
 		if cfg, err := config.Load(root, a.Reg); err == nil {
 			langs := cfg.LanguageRoots()
+			runner := toolRunner(root, "")
+			failed := false
 			for _, l := range langs {
-				fmt.Fprintf(a.Stdout, "analyzer[%s]: %s\n", l.Language, cfg.Languages[l.Language].Tool.Name)
+				if runtime, err := runner.Version(context.Background(), l.Language); err != nil {
+					fmt.Fprintf(a.Stdout, "runtime[%s]: unavailable (%v)\n", l.Language, err)
+					failed = true
+				} else {
+					fmt.Fprintf(a.Stdout, "runtime[%s]: %s\n", l.Language, runtime)
+				}
+				name := cfg.Languages[l.Language].Tool.Name
+				if version, err := runner.Version(context.Background(), name); err != nil {
+					fmt.Fprintf(a.Stdout, "analyzer[%s]: %s unavailable (%v)\n", l.Language, name, err)
+					failed = true
+				} else {
+					fmt.Fprintf(a.Stdout, "analyzer[%s]: %s %s\n", l.Language, name, version)
+				}
+			}
+			if failed {
+				return gate.ExitFailClosed
 			}
 		}
 	}
@@ -57,6 +76,18 @@ func (a *App) cmdGate(ctx context.Context, args []string) int {
 	asSARIF := fs.Bool("sarif", false, "emit SARIF report")
 	analysisDir := fs.String("analysis-dir", "", "use recorded analyzer reports from this dir (offline)")
 	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if *local && *ci {
+		fmt.Fprintln(a.Stderr, "grip gate: --local and --ci cannot be used together")
+		return exitUsage
+	}
+	if *asJSON && *asSARIF {
+		fmt.Fprintln(a.Stderr, "grip gate: --json and --sarif cannot be used together")
+		return exitUsage
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(a.Stderr, "grip gate: unexpected positional arguments")
 		return exitUsage
 	}
 	root, cfg, code := a.loadRepo()
@@ -263,13 +294,31 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 		root = r
 	}
 	cfg, cfgErr := config.Load(root, a.Reg)
-	if cfgErr != nil {
-		fmt.Fprintf(a.Stderr, "grip init: no usable %s yet; write one first or run in a configured repo (%v)\n", config.Filename, cfgErr)
-		return gate.ExitUsage
+	var languageRoots []manifest.LanguageRoots
+	var languageSpecs []plane.LanguageSpec
+	var draftConfig string
+	if cfgErr == nil {
+		languageRoots = cfg.LanguageRoots()
+		languageSpecs = cfg.LanguageSpecs()
+	} else {
+		// Init is the one onboarding command that intentionally works before a
+		// repository config exists. It derives a conservative source-root draft,
+		// prints it by default, and never overwrites an existing config on --write.
+		languageRoots = inferLanguageRoots(root)
+		if len(languageRoots) == 0 {
+			fmt.Fprintln(a.Stderr, "grip init: no supported TypeScript/JavaScript or PHP source files found")
+			return gate.ExitUsage
+		}
+		byLanguage := map[string][]string{}
+		for _, l := range languageRoots {
+			byLanguage[l.Language] = append(byLanguage[l.Language], l.Roots...)
+			languageSpecs = append(languageSpecs, plane.LanguageSpec{Language: l.Language, Roots: l.Roots, Tool: plane.ToolSpec{Name: defaultAnalyzer(l.Language)}})
+		}
+		draftConfig = ratify.StarterConfig(byLanguage)
 	}
 	// Onboarding derives from CANDIDATE modules (immediate children of roots
 	// with source), so it works on a repo with zero grip.yaml files yet.
-	cand, err := manifest.Candidates(root, cfg.LanguageRoots())
+	cand, err := manifest.Candidates(root, languageRoots)
 	if err != nil {
 		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
 		return gate.ExitUsage
@@ -280,7 +329,7 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 		Tools:     toolRunner(root, *analysisDir),
 		ModuleOf:  cand.ModuleOf,
 		FilesOf:   cand.FilesOf,
-		Languages: cfg.LanguageSpecs(),
+		Languages: languageSpecs,
 	}
 	g, err := BuildOrchestrator().Derive(ctx, cand.Refs(), svc)
 	if err != nil {
@@ -288,6 +337,9 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 		return gate.ExitFailClosed
 	}
 	files := ratify.DraftManifests(g)
+	if draftConfig != "" {
+		files = append([]ratify.File{{Path: config.Filename, Content: draftConfig}}, files...)
+	}
 	for _, f := range files {
 		abs := filepath.Join(root, filepath.FromSlash(f.Path))
 		if *write {
@@ -309,6 +361,67 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 		}
 	}
 	return exitOK
+}
+
+func defaultAnalyzer(language string) string {
+	switch language {
+	case "typescript":
+		return "dependency-cruiser"
+	case "php":
+		return "deptrac"
+	default:
+		return ""
+	}
+}
+
+// inferLanguageRoots makes a small, stable, conventional starting config for a
+// previously unconfigured repository. Prefer src/ and app/ when present; fall
+// back to the repository root only when that is where the source actually is.
+func inferLanguageRoots(root string) []manifest.LanguageRoots {
+	typescript := hasSource(root, []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"})
+	php := hasSource(root, []string{".php"})
+	var out []manifest.LanguageRoots
+	if typescript {
+		r := "."
+		if hasSource(filepath.Join(root, "src"), []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}) {
+			r = "src"
+		}
+		out = append(out, manifest.LanguageRoots{Language: "typescript", Roots: []string{r}, Exts: []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}})
+	}
+	if php {
+		r := "."
+		if hasSource(filepath.Join(root, "app"), []string{".php"}) {
+			r = "app"
+		}
+		out = append(out, manifest.LanguageRoots{Language: "php", Roots: []string{r}, Exts: []string{".php"}})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Language < out[j].Language })
+	return out
+}
+
+func hasSource(root string, exts []string) bool {
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	want := map[string]bool{}
+	for _, ext := range exts {
+		want[ext] = true
+	}
+	found := false
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || found {
+			return nil
+		}
+		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "node_modules" || entry.Name() == "vendor") {
+			return filepath.SkipDir
+		}
+		if !entry.IsDir() && want[strings.ToLower(filepath.Ext(entry.Name()))] {
+			found = true
+		}
+		return nil
+	})
+	return found
 }
 
 func (a *App) cmdRatify(ctx context.Context, args []string) int {
@@ -398,12 +511,13 @@ func (a *App) cmdRatifyBehavior(ctx context.Context, args []string) int {
 		refs = append(refs, plane.ModuleRef{ID: m.ID, Path: m.Dir, Language: m.Language})
 	}
 	svc := plane.DeriveServices{
-		Commit:    os.Getenv("GRIP_COMMIT"),
-		RepoRoot:  root,
-		Tools:     toolRunner(root, *analysisDir),
-		ModuleOf:  disc.ModuleForFile,
-		FilesOf:   disc.FilesOf,
-		Languages: cfg.LanguageSpecs(),
+		Commit:       os.Getenv("GRIP_COMMIT"),
+		RepoRoot:     root,
+		Tools:        toolRunner(root, *analysisDir),
+		ModuleOf:     disc.ModuleForFile,
+		FilesOf:      disc.FilesOf,
+		UngovernedOf: disc.UngovernedForFile,
+		Languages:    cfg.LanguageSpecs(),
 	}
 	derived, err := behavior.New().Derive(ctx, refs, svc)
 	if err != nil {

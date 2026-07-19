@@ -97,6 +97,11 @@ var supportedLanguages = map[string][]string{
 	"php":        {".php"},
 }
 
+var supportedAnalyzers = map[string]map[string]bool{
+	"typescript": {"dependency-cruiser": true, "stryker": true},
+	"php":        {"deptrac": true, "infection": true},
+}
+
 // Load reads, parses (strictly), defaults, and validates .grip.yaml against the
 // registry. A missing file, malformed YAML, or any validation failure is a
 // fail-closed error (exit 3 at the CLI boundary for config/usage errors).
@@ -158,6 +163,9 @@ func (c *Config) validate(reg *plane.Registry) error {
 		}
 		if len(lc.Roots) == 0 {
 			return fmt.Errorf("%s: language %q declares no roots", Filename, name)
+		}
+		if !supportedAnalyzers[name][lc.Tool.Name] {
+			return fmt.Errorf("%s: language %q does not support analyzer %q", Filename, name, lc.Tool.Name)
 		}
 	}
 	if c.Modules.Granularity != "directory" {

@@ -63,6 +63,8 @@ func TestFailClosedConditions(t *testing.T) {
 		{"unknown plane", "version: 1\nplanes:\n  telepathy: { enabled: true }\n"},
 		{"no planes enabled", "version: 1\nplanes:\n  architecture: { enabled: false }\n"},
 		{"unsupported language", "version: 1\nplanes:\n  architecture: { enabled: true }\nlanguages:\n  cobol:\n    roots: [\"x\"]\n"},
+		{"missing analyzer", "version: 1\nplanes:\n  architecture: { enabled: true }\nlanguages:\n  typescript:\n    roots: [\"src\"]\n"},
+		{"unsupported analyzer", "version: 1\nplanes:\n  architecture: { enabled: true }\nlanguages:\n  php:\n    roots: [\"app\"]\n    tool: { name: phpstan }\n"},
 		{"unknown top-level key", validConfig + "bogus: true\n"},
 		{"bad granularity", "version: 1\nplanes:\n  architecture: { enabled: true }\nmodules:\n  granularity: package\n"},
 		{"promote unknown rule", "version: 1\nplanes:\n  architecture: { enabled: true }\npolicy:\n  promote:\n    - rule: arch.nonsense\n      to: block\n"},

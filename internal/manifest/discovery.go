@@ -194,6 +194,18 @@ func (d *Discovery) ModuleForFile(relFile string) string {
 	return d.fileToModule[filepath.ToSlash(relFile)]
 }
 
+// UngovernedForFile returns the discovered module without a grip.yaml that owns
+// relFile. It is deliberately separate from ModuleForFile so governed graph
+// construction cannot accidentally treat an ungoverned boundary as trusted.
+func (d *Discovery) UngovernedForFile(relFile string) string {
+	for _, m := range d.Ungoverned {
+		if relFile == m.ID || strings.HasPrefix(relFile, m.ID+"/") {
+			return m.ID
+		}
+	}
+	return ""
+}
+
 // GovernedIDs returns governed module ids in sorted order.
 func (d *Discovery) GovernedIDs() []string {
 	ids := make([]string, 0, len(d.Governed))

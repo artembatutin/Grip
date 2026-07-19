@@ -78,7 +78,7 @@ type ReducedRec struct {
 // byte-identical (post-canonicalization) graph. moduleOf maps a repo-relative
 // file to its owning governed module id (or "" if ungoverned); filesOf lists a
 // module's files so the IR records them even when a module has no imports.
-func Normalize(language string, rep *AnalyzerReport, moduleIDs []string, moduleOf func(string) string, filesOf func(string) []string) (*ir.Graph, error) {
+func Normalize(language string, rep *AnalyzerReport, moduleIDs []string, moduleOf func(string) string, filesOf func(string) []string, ungovernedOf ...func(string) string) (*ir.Graph, error) {
 	if language == "" {
 		return nil, fmt.Errorf("derive: empty language")
 	}
@@ -117,8 +117,15 @@ func Normalize(language string, rep *AnalyzerReport, moduleIDs []string, moduleO
 		}
 		fromMod := moduleOf(im.FromFile)
 		toMod := moduleOf(im.ToFile)
+		if fromMod != "" && toMod == "" {
+			if len(ungovernedOf) > 0 && ungovernedOf[0] != nil && ungovernedOf[0](im.ToFile) != "" {
+				g.Confidence = append(g.Confidence, ir.Confidence{Scope: im.FromFile, Level: ir.LevelNone, Reason: "dependency targets an ungoverned module: " + im.ToFile})
+				continue
+			}
+			return nil, fmt.Errorf("derive: unresolved internal dependency from %q to %q", im.FromFile, im.ToFile)
+		}
 		if fromMod == "" || toMod == "" {
-			continue // one side ungoverned; no governed module edge
+			continue
 		}
 		if m := mods[fromMod]; m != nil {
 			m.Files = appendUnique(m.Files, im.FromFile)
@@ -154,8 +161,10 @@ func Normalize(language string, rep *AnalyzerReport, moduleIDs []string, moduleO
 	// Confidence records.
 	for _, r := range rep.Reduced {
 		lvl := ir.Level(r.Level)
-		if lvl != ir.LevelReduced && lvl != ir.LevelNone {
+		if lvl == "" {
 			lvl = ir.LevelReduced
+		} else if lvl != ir.LevelReduced && lvl != ir.LevelNone {
+			return nil, fmt.Errorf("derive: unknown confidence level %q", r.Level)
 		}
 		g.Confidence = append(g.Confidence, ir.Confidence{Scope: r.File, Level: lvl, Reason: r.Reason})
 	}
