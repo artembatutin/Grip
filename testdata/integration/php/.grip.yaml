@@ -1,0 +1,11 @@
+version: 1
+planes:
+  architecture: { enabled: true }
+languages:
+  php:
+    roots: ["app"]
+    tool: { name: deptrac, minVersion: "4.0.0" }
+modules: { granularity: directory }
+gate:
+  local: { planes: [architecture] }
+  ci: { planes: [architecture] }

@@ -68,6 +68,10 @@ if ($versionStatus !== 0 || trim($deptracVersion) === '') {
     fwrite(STDERR, "grip php helper: cannot determine deptrac version: $versionErr\n");
     exit(3);
 }
+if (!preg_match('/\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.-]+)?/', $deptracVersion, $versionMatch)) {
+    fwrite(STDERR, "grip php helper: deptrac returned an unparsable version: $deptracVersion\n");
+    exit(3);
+}
 $tempBase = tempnam(sys_get_temp_dir(), 'grip-deptrac-');
 if (!$tempBase) { fwrite(STDERR, "grip php helper: cannot create temporary deptrac config\n"); exit(2); }
 $tempConfig = $tempBase . '.yaml';
@@ -112,6 +116,7 @@ use PhpParser\ParserFactory;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\Node;
+use PhpParser\NodeVisitor\NameResolver;
 
 function grip_rel(string $repoRoot, string $p): string {
     $rp = realpath($p) ?: $p;
@@ -154,6 +159,25 @@ $exports = [];
 $imports = [];
 $reduced = [];
 
+// Composer and PSR resolution ultimately name symbols, not paths. Index the
+// parsed declarations first so aliases and PSR-4 namespaces resolve to the real
+// case-sensitive PHP source path instead of an invented namespace filename.
+$symbols = [];
+foreach ($files as $file) {
+    try {
+        $ast = $parser->parse(file_get_contents($file));
+        $resolver = new NodeTraverser();
+        $resolver->addVisitor(new NameResolver());
+        $ast = $resolver->traverse($ast ?: []);
+        $finder = new \PhpParser\NodeFinder();
+        foreach (array_merge($finder->findInstanceOf($ast, Node\Stmt\Class_::class), $finder->findInstanceOf($ast, Node\Stmt\Interface_::class), $finder->findInstanceOf($ast, Node\Stmt\Trait_::class), $finder->findInstanceOf($ast, Node\Stmt\Enum_::class), $finder->findInstanceOf($ast, Node\Stmt\Function_::class)) as $decl) {
+            if ($decl->name && isset($decl->namespacedName)) $symbols[$decl->namespacedName->toString()] = grip_rel($repoRoot, $file);
+        }
+    } catch (\Throwable $e) {
+        // The main pass records parse failure as reduced confidence.
+    }
+}
+
 foreach ($files as $file) {
     $relFile = grip_rel($repoRoot, $file);
     $isEntrypoint = isset($modDirs[dirname($relFile)]);
@@ -164,11 +188,11 @@ foreach ($files as $file) {
         $reduced[] = ['file' => $relFile, 'reason' => 'parse error: ' . $e->getMessage(), 'level' => 'none'];
         continue;
     }
-    $visitor = new class($relFile, $isEntrypoint) extends NodeVisitorAbstract {
+    $visitor = new class($relFile, $isEntrypoint, $symbols) extends NodeVisitorAbstract {
         public array $exports = [];
         public array $imports = [];
         public array $reduced = [];
-        public function __construct(private string $relFile, private bool $isEntrypoint) {}
+        public function __construct(private string $relFile, private bool $isEntrypoint, private array $symbols) {}
         public function enterNode(Node $node) {
             // Public surface: top-level class/interface/function declarations.
             if ($this->isEntrypoint) {
@@ -187,11 +211,11 @@ foreach ($files as $file) {
                 $short = $node->getAlias() ? (string) $node->getAlias() : $node->name->getLast();
                 $this->imports[] = [
                     'fromFile' => $this->relFile,
-                    'toFile' => str_replace('\\', '/', $name) . '.php',
+                    'toFile' => $this->symbols[$name] ?? str_replace('\\', '/', $name) . '.php',
                     'symbol' => $short,
                     'line' => $node->getStartLine(),
                     'kind' => 'import',
-                    'external' => str_starts_with($name, 'Vendor\\'),
+                    'external' => !isset($this->symbols[$name]) && !str_starts_with($name, 'App\\'),
                 ];
             }
             // Reduced-confidence dynamic dispatch.
@@ -220,7 +244,7 @@ if (class_exists(\Composer\InstalledVersions::class)) {
 }
 
 echo json_encode([
-    'tool' => ['name' => 'deptrac', 'version' => ltrim(trim($deptracVersion), 'v')],
+    'tool' => ['name' => 'deptrac', 'version' => $versionMatch[0]],
     'surfaceTool' => ['name' => 'php-parser', 'version' => $parserVersion],
     'imports' => $imports,
     'exports' => $exports,

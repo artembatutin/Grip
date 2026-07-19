@@ -1,0 +1,5 @@
+module: domain
+architecture:
+  facade: [Order]
+  dependencies: { allow: [] }
+  cycles: forbid
