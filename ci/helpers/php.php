@@ -31,7 +31,7 @@ function grip_arg(string $name, ?string $def = null): ?string {
     return $a[0] ?? $def;
 }
 
-$repoRoot = grip_arg('repo-root', getcwd());
+$repoRoot = realpath(grip_arg('repo-root', getcwd())) ?: grip_arg('repo-root', getcwd());
 $roots = grip_arg_all('root');
 
 function grip_executable(string $name, string $repoRoot): ?string {
@@ -68,8 +68,10 @@ if ($versionStatus !== 0 || trim($deptracVersion) === '') {
     fwrite(STDERR, "grip php helper: cannot determine deptrac version: $versionErr\n");
     exit(3);
 }
-$tempConfig = tempnam(sys_get_temp_dir(), 'grip-deptrac-');
-if (!$tempConfig) { fwrite(STDERR, "grip php helper: cannot create temporary deptrac config\n"); exit(2); }
+$tempBase = tempnam(sys_get_temp_dir(), 'grip-deptrac-');
+if (!$tempBase) { fwrite(STDERR, "grip php helper: cannot create temporary deptrac config\n"); exit(2); }
+$tempConfig = $tempBase . '.yaml';
+@unlink($tempBase);
 $paths = [];
 foreach ($roots as $root) {
     $absolute = $repoRoot . '/' . $root;
@@ -92,6 +94,7 @@ if (!is_array(json_decode($deptracJSON, true))) {
 
 // Locate a php-parser autoloader (global or local composer).
 $autoloads = [
+    getenv('GRIP_PHP_AUTOLOAD'),
     getenv('HOME') . '/.composer/vendor/autoload.php',
     getenv('HOME') . '/.config/composer/vendor/autoload.php',
     $repoRoot . '/vendor/autoload.php',
