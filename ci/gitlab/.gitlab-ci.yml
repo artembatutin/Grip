@@ -18,7 +18,7 @@
     GRIP_ANALYSIS_DIR: ""
   before_script:
     - apt-get update -qq && apt-get install -y -qq nodejs npm php-cli composer git >/dev/null
-    - if [ -z "$GRIP_ANALYSIS_DIR" ]; then npm i -g dependency-cruiser@16.10.0 ts-morph@24.0.0; composer global require deptrac/deptrac:^4.0 nikic/php-parser:^5.0; fi
+    - if [ -z "$GRIP_ANALYSIS_DIR" ]; then npm i -g dependency-cruiser@18.1.0 ts-morph@24.0.0; composer global require deptrac/deptrac:^4.0 nikic/php-parser:^5.0; fi
     - export PATH="$(composer global config bin-dir --absolute):$PATH"
     - GOBIN=/usr/local/bin go install "github.com/artembatutin/grip/cmd/grip@${GRIP_VERSION}"
   script:

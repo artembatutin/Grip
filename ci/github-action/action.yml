@@ -40,7 +40,7 @@ runs:
       shell: bash
       run: |
         if [ -z "${{ inputs.analysis-dir }}" ]; then
-          npm i -g dependency-cruiser@16.10.0 ts-morph@24.0.0
+          npm i -g dependency-cruiser@18.1.0 ts-morph@24.0.0
           composer global require deptrac/deptrac:^4.0 nikic/php-parser:^5.0
           echo "$(composer global config bin-dir --absolute)" >> "$GITHUB_PATH"
         fi

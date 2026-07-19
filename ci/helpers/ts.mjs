@@ -38,8 +38,11 @@ const roots = args("root");
 function executable(name) {
   const local = join(repoRoot, "node_modules", ".bin", name);
   if (existsSync(local)) return local;
-  const probe = spawnSync(name, ["--version"], { cwd: repoRoot, encoding: "utf8" });
-  return probe.error ? null : name;
+  for (const dir of (process.env.PATH || "").split(":")) {
+    const candidate = join(dir, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
 }
 
 // dependency-cruiser is deliberately executed, not merely attributed. Its
@@ -55,7 +58,11 @@ if (depVersionRun.status !== 0 || !depVersionRun.stdout.trim()) {
   process.stderr.write(`grip ts helper: cannot determine dependency-cruiser version: ${depVersionRun.stderr}\n`);
   process.exit(3);
 }
-const cruise = spawnSync(depcruise, ["--output-type", "json", ...roots], { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+const depcruiseConfig = [".dependency-cruiser.js", ".dependency-cruiser.cjs", ".dependency-cruiser.mjs", ".dependency-cruiser.json"].some((name) => existsSync(join(repoRoot, name)));
+const cruiseArgs = ["--output-type", "json"];
+if (!depcruiseConfig) cruiseArgs.push("--no-config");
+cruiseArgs.push(...roots);
+const cruise = spawnSync(depcruise, cruiseArgs, { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 if (cruise.status !== 0) {
   process.stderr.write(`grip ts helper: dependency-cruiser failed: ${cruise.stderr}\n`);
   process.exit(2);
@@ -78,7 +85,7 @@ try {
     try {
       // When dependency-cruiser came from a project-local installation, its
       // .bin directory resolves siblings from that same node_modules tree.
-      tsMorphRequire = createRequire(join(dirname(depcruise), "package.json"));
+      tsMorphRequire = createRequire(join(dirname(dirname(depcruise)), "..", "package.json"));
       mod = tsMorphRequire("ts-morph");
     } catch {
       const npm = spawnSync("npm", ["root", "-g"], { cwd: repoRoot, encoding: "utf8" });
