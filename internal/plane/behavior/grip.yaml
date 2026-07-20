@@ -1,0 +1,9 @@
+module: behavior-plane
+intent: >
+  Owns boundary-behavior snapshot derivation and reconciliation. Must NOT own generic gate or report behavior.
+architecture:
+  facade: [Intent, New, PlaneID, SnapshotsFor]
+  dependencies:
+    allow: [internal/ir, internal/plane]
+    layer: adapter
+  cycles: forbid

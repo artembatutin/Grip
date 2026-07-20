@@ -1,0 +1,9 @@
+module: test-rigor-plane
+intent: >
+  Owns mutation and required-test rigor derivation and reconciliation. Must NOT own generic gate or report behavior.
+architecture:
+  facade: [New]
+  dependencies:
+    allow: [internal/ir, internal/plane, internal/vcs]
+    layer: adapter
+  cycles: forbid

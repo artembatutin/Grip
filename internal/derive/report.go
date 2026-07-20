@@ -53,6 +53,9 @@ type ImportRec struct {
 	Symbol   string `json:"symbol"`
 	Line     int    `json:"line"`
 	Kind     string `json:"kind"` // import | call | extends | implements
+	// PackageOnly records a dependency that does not name a target symbol, such
+	// as a Go blank import. It contributes an edge but not facade reachability.
+	PackageOnly bool `json:"packageOnly,omitempty"`
 	// External is true when the target resolves outside the repo (a package);
 	// such references never produce module edges.
 	External bool `json:"external"`
@@ -144,10 +147,12 @@ func Normalize(language string, rep *AnalyzerReport, moduleIDs []string, moduleO
 			edges[k] = e
 		}
 		e.Evidence = append(e.Evidence, ir.Evidence{File: im.FromFile, Line: im.Line, Symbol: im.Symbol})
-		if reachable[toMod] == nil {
-			reachable[toMod] = map[string]bool{}
+		if !im.PackageOnly {
+			if reachable[toMod] == nil {
+				reachable[toMod] = map[string]bool{}
+			}
+			reachable[toMod][im.Symbol] = true
 		}
-		reachable[toMod][im.Symbol] = true
 	}
 
 	for id, m := range mods {

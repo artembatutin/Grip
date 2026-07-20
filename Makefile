@@ -5,12 +5,13 @@
 GO        ?= go
 BIN       ?= bin/grip
 VERSION   ?= devel
+GOLANGCI_LINT_VERSION ?= v2.12.2
 PKG       := ./...
 # The module cache in some sandboxes is read-only; disabling the sumdb avoids a
 # spurious network write. Real environments can drop this.
 GOENV     := GOFLAGS=-mod=mod GOSUMDB=off
 
-.PHONY: all build check fmt vet lint test acceptance determinism cover clean tidy install
+.PHONY: all build check fmt vet lint test acceptance determinism dogfood proof cover clean tidy install
 
 all: check
 
@@ -22,7 +23,7 @@ build:
 install:
 	CGO_ENABLED=0 $(GOENV) $(GO) install -trimpath -ldflags "-X github.com/artembatutin/grip/internal/cli.Version=$(VERSION)" ./cmd/grip
 
-check: build vet fmt-check lint test
+check: build vet fmt-check lint test dogfood
 	@echo "make check: OK"
 
 fmt:
@@ -36,21 +37,35 @@ fmt-check:
 vet:
 	$(GOENV) $(GO) vet $(PKG)
 
-# golangci-lint is optional: run it if installed, otherwise skip with a note
-# (CI installs it; local `make check` should not hard-fail without it).
+# Match CI exactly even when golangci-lint is not installed locally. `go run`
+# caches the pinned tool without adding it to this module's dependencies.
 lint:
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./... ; \
-	else \
-		echo "golangci-lint not installed — skipping (install to match CI)"; \
-	fi
+	$(GOENV) $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --timeout=5m ./...
 
 test:
 	$(GOENV) $(GO) test $(PKG)
 
-# The M0 exit gate: the full acceptance matrix over the PHP+TS fixtures.
+# The M0 exit gate: the full acceptance matrix, including real Go derivation.
 acceptance:
-	$(GOENV) $(GO) test -count=1 -run 'TestAcceptanceMatrix|TestDeterminism|TestMergedIR' ./internal/acceptance/ -v
+	$(GOENV) $(GO) test -count=1 -run 'TestAcceptanceMatrix|TestGo|TestDeterminism|TestMergedIR' ./internal/acceptance/ -v
+
+# Build the candidate binary, then make Grip govern Grip's own package graph.
+# After the first Go-capable release, CI should additionally run that pinned
+# release as the guardian so a PR-built binary is never its sole judge.
+dogfood: build
+	./$(BIN) gate --ci
+
+# Reproduce the full adversarial proof across all four planes, then self-gate.
+proof: build
+	$(GOENV) $(GO) test -count=1 -run 'TestGo' ./internal/acceptance/ -v
+	./$(BIN) gate --ci
+	./$(BIN) diff
+	@first="$$(mktemp)"; second="$$(mktemp)"; \
+	trap 'rm -f "$$first" "$$second"' 0; \
+	GRIP_COMMIT=ci-proof ./$(BIN) gate --ci --json > "$$first"; \
+	GRIP_COMMIT=ci-proof ./$(BIN) gate --ci --json > "$$second"; \
+	cmp -s "$$first" "$$second" || { diff -u "$$first" "$$second"; exit 1; }; \
+	echo "grip: deterministic four-plane JSON report"
 
 # Determinism proof in isolation (100x IR-hash stability).
 determinism:

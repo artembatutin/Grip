@@ -1,0 +1,9 @@
+module: architecture-plane
+intent: >
+  Owns architecture intent parsing and deterministic architecture rules. Must NOT own language parsing or generic gate decisions.
+architecture:
+  facade: [DeclaredSurface, New, PlaneID]
+  dependencies:
+    allow: [internal/ir, internal/plane]
+    layer: adapter
+  cycles: forbid

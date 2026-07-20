@@ -1,0 +1,12 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Short CLI status and diagnostic lines are best-effort. Structured and
+      # document outputs (JSON, SARIF, HTML, IR, and reports) check Writer.Write
+      # directly and fail closed when delivery fails.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln

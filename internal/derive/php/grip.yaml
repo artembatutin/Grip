@@ -1,0 +1,9 @@
+module: php-deriver
+intent: >
+  Owns PHP analyzer adaptation into the common IR. Must NOT implement reconciliation or gate policy.
+architecture:
+  facade: [New]
+  dependencies:
+    allow: [internal/derive, internal/ir, internal/plane]
+    layer: adapter
+  cycles: forbid

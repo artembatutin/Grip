@@ -54,6 +54,25 @@ func TestLoadValid(t *testing.T) {
 	}
 }
 
+func TestLoadGoLanguage(t *testing.T) {
+	body := `version: 1
+planes:
+  architecture: { enabled: true }
+languages:
+  go:
+    roots: ["."]
+    tool: { name: go, minVersion: "1.26.0" }
+`
+	dir := writeConfig(t, body)
+	cfg, err := Load(dir, testRegistry())
+	if err != nil {
+		t.Fatalf("Go config rejected: %v", err)
+	}
+	if specs := cfg.LanguageSpecs(); len(specs) != 1 || specs[0].Language != "go" || specs[0].Tool.Name != "go" {
+		t.Fatalf("language specs = %#v", specs)
+	}
+}
+
 func TestFailClosedConditions(t *testing.T) {
 	cases := []struct {
 		name string

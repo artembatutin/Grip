@@ -1,0 +1,5 @@
+grip:behavior/v1
+module: internal/toolversion
+boundary: ExampleCompare
+---
+- example: -1

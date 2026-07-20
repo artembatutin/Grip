@@ -17,6 +17,7 @@ import (
 const (
 	toolTypeScript = "testrigor-typescript"
 	toolPHP        = "testrigor-php"
+	toolGo         = "testrigor-go"
 	// baselineTool yields the prior-commit required-test set and thresholds. Its
 	// absence is benign (no baseline to compare against), NOT a fail-closed block:
 	// a missing mutation tool blocks, but a missing baseline just disables the
@@ -99,6 +100,14 @@ func (p *Plane) derive(ctx context.Context, mods []plane.ModuleRef, svc plane.De
 
 	model := &Model{}
 	for _, lang := range langs {
+		if lang == "go" {
+			states, err := deriveGoTestRigor(ctx, byLang[lang], svc)
+			if err != nil {
+				return nil, err
+			}
+			model.Modules = append(model.Modules, states...)
+			continue
+		}
 		name, ok := toolName(lang)
 		if !ok {
 			// A language with governed modules but no test-rigor helper is a
@@ -165,6 +174,14 @@ func (p *Plane) derive(ctx context.Context, mods []plane.ModuleRef, svc plane.De
 	}
 
 	model.Baseline = p.baseline(ctx, svc)
+	for id, baseline := range goTestRigorBaseline(ctx, mods, svc) {
+		if model.Baseline == nil {
+			model.Baseline = map[string]*BaselineState{}
+		}
+		if model.Baseline[id] == nil {
+			model.Baseline[id] = baseline
+		}
+	}
 	model.index()
 	return model, nil
 }
@@ -285,6 +302,8 @@ func toolName(lang string) (string, bool) {
 		return toolTypeScript, true
 	case "php":
 		return toolPHP, true
+	case "go":
+		return toolGo, true
 	default:
 		return "", false
 	}

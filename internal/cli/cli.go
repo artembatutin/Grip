@@ -13,6 +13,7 @@ import (
 
 	"github.com/artembatutin/grip/internal/config"
 	"github.com/artembatutin/grip/internal/derive"
+	golangderive "github.com/artembatutin/grip/internal/derive/golang"
 	"github.com/artembatutin/grip/internal/derive/php"
 	"github.com/artembatutin/grip/internal/derive/typescript"
 	"github.com/artembatutin/grip/internal/plane"
@@ -42,7 +43,7 @@ type App struct {
 // BuildOrchestrator wires the concrete language derivers. This and BuildRegistry
 // are the only places that name languages/planes.
 func BuildOrchestrator() *derive.Orchestrator {
-	return derive.NewOrchestrator(typescript.New(), php.New())
+	return derive.NewOrchestrator(typescript.New(), php.New(), golangderive.New())
 }
 
 // BuildRegistry is the single wiring point that knows the concrete planes and
@@ -93,14 +94,14 @@ func (a *App) Run(args []string) int {
 		a.usage()
 		return exitOK
 	default:
-		fmt.Fprintf(a.Stderr, "grip: unknown command %q\n\n", cmd)
+		_, _ = fmt.Fprintf(a.Stderr, "grip: unknown command %q\n\n", cmd)
 		a.usage()
 		return exitUsage
 	}
 }
 
 func (a *App) usage() {
-	fmt.Fprint(a.Stderr, `grip — a deterministic control plane that keeps a human the architect.
+	_, _ = fmt.Fprint(a.Stderr, `grip — a deterministic control plane that keeps a human the architect.
 
 usage: grip <command> [flags]
 

@@ -1,0 +1,9 @@
+module: diff
+intent: >
+  Owns deterministic shape-delta computation over IR snapshots. Must NOT load repositories or make gate decisions.
+architecture:
+  facade: [Compute, DeclChange, Delta, Input]
+  dependencies:
+    allow: [internal/ir]
+    layer: engine
+  cycles: forbid

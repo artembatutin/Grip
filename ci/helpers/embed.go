@@ -37,7 +37,7 @@ func Directory() (string, error) {
 // never uses the consumer repository as a cache location.
 func Extract(root string) (string, error) {
 	if root == "" {
-		return "", fmt.Errorf("Grip helper cache directory is empty")
+		return "", fmt.Errorf("grip helper cache directory is empty")
 	}
 	dir := filepath.Join(root, identity())
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -58,7 +58,8 @@ func Extract(root string) (string, error) {
 			return "", fmt.Errorf("create helper %q: %w", name, err)
 		}
 		tmpName := tmp.Name()
-		if _, err := tmp.Write(body); err == nil {
+		_, err = tmp.Write(body)
+		if err == nil {
 			err = tmp.Chmod(0o700)
 		}
 		if closeErr := tmp.Close(); err == nil {
@@ -97,10 +98,10 @@ func verify(dir string) (string, error) {
 		path := filepath.Join(dir, name)
 		info, err := os.Stat(path)
 		if err != nil {
-			return "", fmt.Errorf("Grip helper %q is unavailable at %q; unset GRIP_HELPER_DIR to use the embedded helpers: %w", name, path, err)
+			return "", fmt.Errorf("grip helper %q is unavailable at %q; unset GRIP_HELPER_DIR to use the embedded helpers: %w", name, path, err)
 		}
 		if info.IsDir() {
-			return "", fmt.Errorf("Grip helper %q at %q is a directory", name, path)
+			return "", fmt.Errorf("grip helper %q at %q is a directory", name, path)
 		}
 	}
 	return dir, nil

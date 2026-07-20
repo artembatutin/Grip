@@ -1,0 +1,25 @@
+version: 1
+
+planes:
+  architecture: { enabled: true }
+  behavior: { enabled: true }
+  contract: { enabled: true }
+  test-rigor: { enabled: true }
+
+languages:
+  go:
+    roots: ["ci", "cmd", "internal"]
+    tool: { name: go, minVersion: "1.26.0" }
+
+modules:
+  granularity: directory
+
+policy:
+  layers:
+    order: [foundation, engine, adapter, delivery]
+  promote: []
+
+gate:
+  failClosed: true
+  local: { planes: [architecture, behavior, contract, test-rigor] }
+  ci: { planes: [architecture, behavior, contract, test-rigor] }

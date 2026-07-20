@@ -8,6 +8,9 @@ version: 1
 planes:
   architecture: { enabled: true }
 languages:
+  go:
+    roots: ["internal", "cmd"]
+    tool: { name: go, minVersion: "1.26.0" }
   typescript:
     roots: ["src"]
     tool: { name: dependency-cruiser, minVersion: "16.0.0" }
@@ -24,7 +27,8 @@ gate:
 ```
 
 The supported architecture analyzers are `dependency-cruiser` for TypeScript/
-JavaScript and `deptrac` for PHP. `minVersion` uses semantic-version precedence;
+JavaScript, `deptrac` for PHP, and the Go toolchain plus standard parser for Go.
+Go test files are excluded from production architecture edges. `minVersion` uses semantic-version precedence;
 pre-releases sort below their final release. Analyzer identity or a version that
 cannot be resolved is a fail-closed result.
 

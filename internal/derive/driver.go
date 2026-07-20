@@ -77,7 +77,7 @@ func ValidateReport(language string, configured plane.ToolSpec, rep *AnalyzerRep
 		return fmt.Errorf("%s deriver: missing surface analyzer identity", language)
 	}
 	for _, im := range rep.Imports {
-		if im.FromFile == "" || im.ToFile == "" || im.Symbol == "" || im.Line < 1 {
+		if im.FromFile == "" || im.ToFile == "" || (!im.PackageOnly && im.Symbol == "") || im.Line < 1 {
 			return fmt.Errorf("%s deriver: malformed import evidence", language)
 		}
 		switch im.Kind {
@@ -146,6 +146,19 @@ func (r *ExecRunner) helperRuntime(name string) (bin, script, installHint string
 
 // Run executes the bundled helper for a language and returns its stdout.
 func (r *ExecRunner) Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error) {
+	if name == "go" {
+		if _, err := exec.LookPath("go"); err != nil {
+			return nil, &plane.ToolMissingError{Tool: "go", Hint: "install the Go toolchain"}
+		}
+		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Dir = r.RepoRoot
+		cmd.Stdin = strings.NewReader(string(stdin))
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("derive: go %s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
+		return out, nil
+	}
 	bin, script, hint, ok := r.helperRuntime(name)
 	if !ok {
 		return nil, fmt.Errorf("derive: unknown helper %q", name)
@@ -203,6 +216,8 @@ func (r *ExecRunner) Version(ctx context.Context, name string) (string, error) {
 
 func analyzerVersionCommand(name string) (string, []string, bool) {
 	switch name {
+	case "go":
+		return "go", []string{"version"}, true
 	case "dependency-cruiser":
 		return "depcruise", []string{"--version"}, true
 	case "deptrac":

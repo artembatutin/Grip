@@ -1,0 +1,9 @@
+module: report
+intent: >
+  Owns human, JSON, SARIF, and HTML rendering of gate results and shape deltas. Must NOT derive facts or decide whether a gate blocks.
+architecture:
+  facade: [BuildDocument, HTML, Human, JSON, SARIF, Surface, View]
+  dependencies:
+    allow: [internal/diff, internal/gate, internal/ir, internal/plane]
+    layer: engine
+  cycles: forbid

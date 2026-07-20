@@ -1,0 +1,872 @@
+{
+  "Graph": {
+    "irVersion": "1",
+    "commit": "self-host-bootstrap",
+    "modules": [
+      {
+        "id": "ci/helpers",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Directory",
+          "Identity"
+        ]
+      },
+      {
+        "id": "cmd/grip",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": null
+      },
+      {
+        "id": "internal/cli",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Main"
+        ]
+      },
+      {
+        "id": "internal/config",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Config",
+          "Filename",
+          "Load"
+        ]
+      },
+      {
+        "id": "internal/derive",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "AnalyzerInfo",
+          "AnalyzerReport",
+          "Deriver",
+          "ExecRunner",
+          "ExportRec",
+          "ImportRec",
+          "NewOrchestrator",
+          "Normalize",
+          "Orchestrator",
+          "RecordedRunner",
+          "ReducedRec",
+          "RunHelper",
+          "ValidateReport"
+        ]
+      },
+      {
+        "id": "internal/derive/golang",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "New"
+        ]
+      },
+      {
+        "id": "internal/derive/php",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "New"
+        ]
+      },
+      {
+        "id": "internal/derive/typescript",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "New"
+        ]
+      },
+      {
+        "id": "internal/diff",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Compute",
+          "DeclChange",
+          "Delta",
+          "Input"
+        ]
+      },
+      {
+        "id": "internal/gate",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "ExitFailClosed",
+          "ExitUsage",
+          "FailClosed",
+          "Options",
+          "Outcome",
+          "Run"
+        ]
+      },
+      {
+        "id": "internal/ir",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Analyzer",
+          "Confidence",
+          "Edge",
+          "Evidence",
+          "Export",
+          "Graph",
+          "Level",
+          "LevelFull",
+          "LevelNone",
+          "LevelReduced",
+          "Merge",
+          "Module",
+          "Version"
+        ]
+      },
+      {
+        "id": "internal/manifest",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Candidates",
+          "Discover",
+          "Discovery",
+          "LanguageRoots"
+        ]
+      },
+      {
+        "id": "internal/plane",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "DeriveServices",
+          "Derived",
+          "Intent",
+          "KindCannotVerify",
+          "KindIntentionalChange",
+          "KindStaleDeclaration",
+          "KindViolation",
+          "LanguageSpec",
+          "Location",
+          "ManifestSection",
+          "ModuleRef",
+          "NewRegistry",
+          "Plane",
+          "Registry",
+          "RuleSpec",
+          "Tier",
+          "TierA",
+          "TierB",
+          "TierC",
+          "ToolMissingError",
+          "ToolRunner",
+          "ToolSpec",
+          "Violation"
+        ]
+      },
+      {
+        "id": "internal/plane/architecture",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "DeclaredSurface",
+          "New",
+          "PlaneID"
+        ]
+      },
+      {
+        "id": "internal/plane/behavior",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Intent",
+          "New",
+          "PlaneID",
+          "SnapshotsFor"
+        ]
+      },
+      {
+        "id": "internal/plane/contract",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "BaselinesFor",
+          "Intent",
+          "New",
+          "PlaneID"
+        ]
+      },
+      {
+        "id": "internal/plane/testrigor",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "New"
+        ]
+      },
+      {
+        "id": "internal/ratify",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "DraftManifests",
+          "File",
+          "StarterConfig"
+        ]
+      },
+      {
+        "id": "internal/reconcile",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "IntentError",
+          "Module",
+          "Result",
+          "RunPlane"
+        ]
+      },
+      {
+        "id": "internal/report",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "BuildDocument",
+          "HTML",
+          "Human",
+          "JSON",
+          "SARIF",
+          "Surface",
+          "View"
+        ]
+      },
+      {
+        "id": "internal/toolversion",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "Compare",
+          "Parse"
+        ]
+      },
+      {
+        "id": "internal/vcs",
+        "language": "go",
+        "files": null,
+        "exports": null,
+        "reachableFromOutside": [
+          "ChangedFiles",
+          "HeadCommit"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "cmd/grip",
+        "to": "internal/cli",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "ci/helpers",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/config",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/derive",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/derive/golang",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/derive/php",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/derive/typescript",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/diff",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/gate",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/manifest",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/plane/architecture",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/plane/behavior",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/plane/contract",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/plane/testrigor",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/ratify",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/cli",
+        "to": "internal/report",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/config",
+        "to": "internal/manifest",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/config",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive",
+        "to": "ci/helpers",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive",
+        "to": "internal/toolversion",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/golang",
+        "to": "internal/derive",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/golang",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/golang",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/php",
+        "to": "internal/derive",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/php",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/php",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/typescript",
+        "to": "internal/derive",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/typescript",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/derive/typescript",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/diff",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/config",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/manifest",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/reconcile",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/gate",
+        "to": "internal/vcs",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/manifest",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/architecture",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/architecture",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/behavior",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/behavior",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/contract",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/contract",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/testrigor",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/testrigor",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/plane/testrigor",
+        "to": "internal/vcs",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/ratify",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/reconcile",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/report",
+        "to": "internal/diff",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/report",
+        "to": "internal/gate",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/report",
+        "to": "internal/ir",
+        "kind": "import",
+        "evidence": null
+      },
+      {
+        "from": "internal/report",
+        "to": "internal/plane",
+        "kind": "import",
+        "evidence": null
+      }
+    ],
+    "confidence": null,
+    "analyzers": null
+  },
+  "Facades": {
+    "ci/helpers": [
+      "Directory",
+      "Identity"
+    ],
+    "internal/cli": [
+      "Main"
+    ],
+    "internal/config": [
+      "Config",
+      "Filename",
+      "Load"
+    ],
+    "internal/derive": [
+      "AnalyzerInfo",
+      "AnalyzerReport",
+      "Deriver",
+      "ExecRunner",
+      "ExportRec",
+      "ImportRec",
+      "NewOrchestrator",
+      "Normalize",
+      "Orchestrator",
+      "RecordedRunner",
+      "ReducedRec",
+      "RunHelper",
+      "ValidateReport"
+    ],
+    "internal/derive/golang": [
+      "New"
+    ],
+    "internal/derive/php": [
+      "New"
+    ],
+    "internal/derive/typescript": [
+      "New"
+    ],
+    "internal/diff": [
+      "Compute",
+      "DeclChange",
+      "Delta",
+      "Input"
+    ],
+    "internal/gate": [
+      "ExitFailClosed",
+      "ExitUsage",
+      "FailClosed",
+      "Options",
+      "Outcome",
+      "Run"
+    ],
+    "internal/ir": [
+      "Analyzer",
+      "Confidence",
+      "Edge",
+      "Evidence",
+      "Export",
+      "Graph",
+      "Level",
+      "LevelFull",
+      "LevelNone",
+      "LevelReduced",
+      "Merge",
+      "Module",
+      "Version"
+    ],
+    "internal/manifest": [
+      "Candidates",
+      "Discover",
+      "Discovery",
+      "LanguageRoots"
+    ],
+    "internal/plane": [
+      "DeriveServices",
+      "Derived",
+      "Intent",
+      "KindCannotVerify",
+      "KindIntentionalChange",
+      "KindStaleDeclaration",
+      "KindViolation",
+      "LanguageSpec",
+      "Location",
+      "ManifestSection",
+      "ModuleRef",
+      "NewRegistry",
+      "Plane",
+      "Registry",
+      "RuleSpec",
+      "Tier",
+      "TierA",
+      "TierB",
+      "TierC",
+      "ToolMissingError",
+      "ToolRunner",
+      "ToolSpec",
+      "Violation"
+    ],
+    "internal/plane/architecture": [
+      "DeclaredSurface",
+      "New",
+      "PlaneID"
+    ],
+    "internal/plane/behavior": [
+      "Intent",
+      "New",
+      "PlaneID",
+      "SnapshotsFor"
+    ],
+    "internal/plane/contract": [
+      "BaselinesFor",
+      "Intent",
+      "New",
+      "PlaneID"
+    ],
+    "internal/plane/testrigor": [
+      "New"
+    ],
+    "internal/ratify": [
+      "DraftManifests",
+      "File",
+      "StarterConfig"
+    ],
+    "internal/reconcile": [
+      "IntentError",
+      "Module",
+      "Result",
+      "RunPlane"
+    ],
+    "internal/report": [
+      "BuildDocument",
+      "HTML",
+      "Human",
+      "JSON",
+      "SARIF",
+      "Surface",
+      "View"
+    ],
+    "internal/toolversion": [
+      "Compare",
+      "Parse"
+    ],
+    "internal/vcs": [
+      "ChangedFiles",
+      "HeadCommit"
+    ]
+  },
+  "Allows": {
+    "cmd/grip": [
+      "internal/cli"
+    ],
+    "internal/cli": [
+      "ci/helpers",
+      "internal/config",
+      "internal/derive",
+      "internal/derive/golang",
+      "internal/derive/php",
+      "internal/derive/typescript",
+      "internal/diff",
+      "internal/gate",
+      "internal/ir",
+      "internal/manifest",
+      "internal/plane",
+      "internal/plane/architecture",
+      "internal/plane/behavior",
+      "internal/plane/contract",
+      "internal/plane/testrigor",
+      "internal/ratify",
+      "internal/report"
+    ],
+    "internal/config": [
+      "internal/manifest",
+      "internal/plane"
+    ],
+    "internal/derive": [
+      "ci/helpers",
+      "internal/ir",
+      "internal/plane",
+      "internal/toolversion"
+    ],
+    "internal/derive/golang": [
+      "internal/derive",
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/derive/php": [
+      "internal/derive",
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/derive/typescript": [
+      "internal/derive",
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/diff": [
+      "internal/ir"
+    ],
+    "internal/gate": [
+      "internal/config",
+      "internal/ir",
+      "internal/manifest",
+      "internal/plane",
+      "internal/reconcile",
+      "internal/vcs"
+    ],
+    "internal/manifest": [
+      "internal/plane"
+    ],
+    "internal/plane": [
+      "internal/ir"
+    ],
+    "internal/plane/architecture": [
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/plane/behavior": [
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/plane/contract": [
+      "internal/ir",
+      "internal/plane"
+    ],
+    "internal/plane/testrigor": [
+      "internal/ir",
+      "internal/plane",
+      "internal/vcs"
+    ],
+    "internal/ratify": [
+      "internal/ir"
+    ],
+    "internal/reconcile": [
+      "internal/plane"
+    ],
+    "internal/report": [
+      "internal/diff",
+      "internal/gate",
+      "internal/ir",
+      "internal/plane"
+    ]
+  }
+}

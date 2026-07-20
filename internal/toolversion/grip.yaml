@@ -1,0 +1,17 @@
+module: tool-version
+intent: >
+  Owns deterministic semantic-version parsing and comparison for analyzer identities. Must NOT execute tools or inspect repositories.
+architecture:
+  facade: [Compare, Parse]
+  dependencies:
+    allow: []
+    layer: foundation
+  cycles: forbid
+behavior:
+  pin: [ExampleCompare]
+contract:
+  api: { compat: backward }
+testRigor:
+  requiredBehaviors: [semver-precedence]
+  mutationThreshold: 70
+  boundaryContract: true

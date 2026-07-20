@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/artembatutin/grip/internal/plane"
 )
@@ -27,10 +26,9 @@ type CandidateSet struct {
 	fileToModule map[string]string
 }
 
-// Candidates proposes modules from source layout alone: each immediate child
-// directory of a language root that contains source of that language becomes a
-// candidate module. This is what lets onboarding derive structure before the
-// human has written a single grip.yaml.
+// Candidates proposes modules from source layout alone. Go packages are already
+// explicit directory boundaries, so each package becomes a candidate. Other
+// languages retain the immediate-child convention used since M0.
 func Candidates(repoRoot string, langs []LanguageRoots) (*CandidateSet, error) {
 	cs := &CandidateSet{fileToModule: map[string]string{}}
 	byID := map[string]*Candidate{}
@@ -55,12 +53,15 @@ func Candidates(repoRoot string, langs []LanguageRoots) (*CandidateSet, error) {
 					}
 					return nil
 				}
-				if !extset[strings.ToLower(filepath.Ext(e.Name()))] {
+				if !isSourceFile(lg.Language, e.Name(), extset) {
 					return nil
 				}
 				relFile, _ := relID(repoRoot, p)
 				relDir, _ := relID(repoRoot, filepath.Dir(p))
 				id := immediateChildUnderRoot(relDir, lg.Roots)
+				if lg.Language == "go" {
+					id = relDir
+				}
 				c := byID[id]
 				if c == nil {
 					c = &Candidate{ID: id, Dir: filepath.Join(repoRoot, filepath.FromSlash(id)), Language: lg.Language}

@@ -57,10 +57,10 @@ func contentHash(repoRoot, moduleID string, files []string, toolName, toolVersio
 }
 
 func writeField(h interface{ Write([]byte) (int, error) }, k, v string) {
-	h.Write([]byte(k))
-	h.Write([]byte{0x1f})
-	h.Write([]byte(v))
-	h.Write([]byte{0x1e})
+	_, _ = h.Write([]byte(k))
+	_, _ = h.Write([]byte{0x1f})
+	_, _ = h.Write([]byte(v))
+	_, _ = h.Write([]byte{0x1e})
 }
 
 // changedModules returns the set of module ids that touch a file changed vs the

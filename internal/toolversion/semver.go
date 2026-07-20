@@ -65,7 +65,7 @@ func Parse(raw string) (Version, error) {
 		id := identifier{raw: p}
 		allDigits := true
 		for _, r := range p {
-			if !(r >= '0' && r <= '9') && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && r != '-' {
+			if !validIdentifierRune(r) {
 				return Version{}, fmt.Errorf("invalid semantic version %q", raw)
 			}
 			if r < '0' || r > '9' {
@@ -82,6 +82,10 @@ func Parse(raw string) (Version, error) {
 		v.Pre = append(v.Pre, id)
 	}
 	return v, nil
+}
+
+func validIdentifierRune(r rune) bool {
+	return r == '-' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
 }
 
 // Compare returns -1, 0, or 1 according to SemVer precedence.

@@ -91,15 +91,17 @@ type GateModeConfig struct {
 }
 
 // supportedLanguages maps a config language name to the source extensions
-// discovery treats as that language's code. M0 supports PHP and TS/JS (D2).
+// discovery treats as that language's code.
 var supportedLanguages = map[string][]string{
 	"typescript": {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cts", ".mts"},
 	"php":        {".php"},
+	"go":         {".go"},
 }
 
 var supportedAnalyzers = map[string]map[string]bool{
 	"typescript": {"dependency-cruiser": true, "stryker": true},
 	"php":        {"deptrac": true, "infection": true},
+	"go":         {"go": true},
 }
 
 // Load reads, parses (strictly), defaults, and validates .grip.yaml against the
@@ -159,7 +161,7 @@ func (c *Config) validate(reg *plane.Registry) error {
 	// Every configured language must be supported and declare at least one root.
 	for name, lc := range c.Languages {
 		if _, ok := supportedLanguages[name]; !ok {
-			return fmt.Errorf("%s: unsupported language %q (M0 supports php and typescript)", Filename, name)
+			return fmt.Errorf("%s: unsupported language %q (supported: go, php, typescript)", Filename, name)
 		}
 		if len(lc.Roots) == 0 {
 			return fmt.Errorf("%s: language %q declares no roots", Filename, name)

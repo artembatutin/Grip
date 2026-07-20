@@ -1,0 +1,22 @@
+module: derive
+intent: >
+  Owns language-neutral analyzer orchestration, report validation, and IR normalization. Must NOT contain language-specific parsing or architecture rules.
+architecture:
+  facade:
+    - AnalyzerInfo
+    - AnalyzerReport
+    - Deriver
+    - ExecRunner
+    - ExportRec
+    - ImportRec
+    - NewOrchestrator
+    - Normalize
+    - Orchestrator
+    - RecordedRunner
+    - ReducedRec
+    - RunHelper
+    - ValidateReport
+  dependencies:
+    allow: [ci/helpers, internal/ir, internal/plane, internal/toolversion]
+    layer: engine
+  cycles: forbid

@@ -94,7 +94,7 @@ func Discover(repoRoot string, langs []LanguageRoots) (*Discovery, error) {
 					governedByLang[lg.Language][man.ID] = man
 					return nil
 				}
-				if extset[strings.ToLower(filepath.Ext(e.Name()))] {
+				if isSourceFile(lg.Language, e.Name(), extset) {
 					rel, rerr := relID(repoRoot, filepath.Dir(p))
 					if rerr != nil {
 						return rerr
@@ -120,20 +120,29 @@ func Discover(repoRoot string, langs []LanguageRoots) (*Discovery, error) {
 			gids = append(gids, id)
 		}
 		sort.Strings(gids)
-		for id, man := range governed {
-			d.Governed = append(d.Governed, &Module{
-				ID: id, Dir: man.Dir, Language: lg.Language, Governed: true, Manifest: man,
-			})
-		}
 		// Classify each source directory by nearest governed ancestor.
+		active := map[string]bool{}
 		for dir := range sourceDirs[lg.Language] {
 			owner := nearestAncestor(dir, gids)
-			if owner == "" {
+			if owner != "" {
+				active[owner] = true
+			} else {
 				uid := immediateChildUnderRoot(dir, lg.Roots)
 				if _, ok := ungovernedIDs[uid]; !ok {
 					ungovernedIDs[uid] = lg.Language
 				}
 			}
+		}
+		// A grip.yaml for another configured language may sit under an
+		// overlapping root. It is a module only when it actually owns source for
+		// this language; empty/foreign manifests must not become phantom modules.
+		for id, man := range governed {
+			if !active[id] {
+				continue
+			}
+			d.Governed = append(d.Governed, &Module{
+				ID: id, Dir: man.Dir, Language: lg.Language, Governed: true, Manifest: man,
+			})
 		}
 	}
 
@@ -164,7 +173,7 @@ func Discover(repoRoot string, langs []LanguageRoots) (*Discovery, error) {
 					}
 					return nil
 				}
-				if !extset[strings.ToLower(filepath.Ext(e.Name()))] {
+				if !isSourceFile(lg.Language, e.Name(), extset) {
 					return nil
 				}
 				relFile, _ := relID(repoRoot, p)
@@ -291,4 +300,14 @@ func isIgnoredDir(name string) bool {
 	default:
 		return false
 	}
+}
+
+// isSourceFile excludes Go test-only packages from architecture discovery.
+// Tests that live beside production files remain owned by that module, but
+// their imports do not create production architecture edges.
+func isSourceFile(language, name string, extset map[string]bool) bool {
+	if !extset[strings.ToLower(filepath.Ext(name))] {
+		return false
+	}
+	return language != "go" || !strings.HasSuffix(name, "_test.go")
 }

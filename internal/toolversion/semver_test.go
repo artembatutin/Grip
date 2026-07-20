@@ -1,7 +1,11 @@
 package toolversion
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
+// grip:test behavior=semver-precedence contract
 func TestCompare(t *testing.T) {
 	cases := []struct {
 		a, b string
@@ -17,6 +21,13 @@ func TestCompare(t *testing.T) {
 			t.Errorf("Compare(%s, %s) = %d, want %d", tc.a, tc.b, got, tc.want)
 		}
 	}
+}
+
+func ExampleCompare() {
+	older, _ := Parse("1.2.3")
+	newer, _ := Parse("1.3.0")
+	fmt.Println(Compare(older, newer))
+	// Output: -1
 }
 
 func TestParseRejectsNonVersions(t *testing.T) {

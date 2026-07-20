@@ -27,6 +27,7 @@ import (
 const (
 	toolAPITypeScript = "contract-api-typescript"
 	toolAPIPHP        = "contract-api-php"
+	toolAPIGo         = "contract-api-go"
 	toolEvents        = "contract-events"
 	toolDB            = "contract-db"
 	// baselineTool yields the prior-commit ratified baseline per module/kind, used
@@ -189,6 +190,16 @@ func (apiDeriver) derive(ctx context.Context, mods []plane.ModuleRef, svc plane.
 
 	out := map[string]*kindVerdict{}
 	for _, lang := range langs {
+		if lang == "go" {
+			v, err := deriveGoAPI(byLang[lang], svc)
+			if err != nil {
+				return nil, err
+			}
+			for id, kv := range v {
+				out[id] = kv
+			}
+			continue
+		}
 		tool, ok := apiToolName(lang)
 		if !ok {
 			// No api checker exists for this language. Do not hard-fail the whole
@@ -214,7 +225,11 @@ type eventsDeriver struct{}
 func (eventsDeriver) kind() string { return KindEvents }
 
 func (eventsDeriver) derive(ctx context.Context, mods []plane.ModuleRef, svc plane.DeriveServices) (map[string]*kindVerdict, error) {
-	return runChecker(ctx, svc, toolEvents, allRootsArgs(svc))
+	v, err := runChecker(ctx, svc, toolEvents, allRootsArgs(svc))
+	if err != nil && !hasContractArtifacts(svc, []string{".proto", ".avsc", ".jsonschema"}) {
+		return map[string]*kindVerdict{}, nil
+	}
+	return v, err
 }
 
 // dbDeriver derives the db kind with a single migration-compat checker: it parses
@@ -225,7 +240,11 @@ type dbDeriver struct{}
 func (dbDeriver) kind() string { return KindDB }
 
 func (dbDeriver) derive(ctx context.Context, mods []plane.ModuleRef, svc plane.DeriveServices) (map[string]*kindVerdict, error) {
-	return runChecker(ctx, svc, toolDB, allRootsArgs(svc))
+	v, err := runChecker(ctx, svc, toolDB, allRootsArgs(svc))
+	if err != nil && !hasContractArtifacts(svc, []string{".sql"}) {
+		return map[string]*kindVerdict{}, nil
+	}
+	return v, err
 }
 
 // runChecker runs one checker tool and normalizes its report into per-module
@@ -313,6 +332,8 @@ func apiToolName(lang string) (string, bool) {
 		return toolAPITypeScript, true
 	case "php":
 		return toolAPIPHP, true
+	case "go":
+		return toolAPIGo, true
 	default:
 		return "", false
 	}

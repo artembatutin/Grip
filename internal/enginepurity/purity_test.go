@@ -33,6 +33,7 @@ var engineCorePackages = []string{
 	"internal/derive",
 	"internal/derive/typescript",
 	"internal/derive/php",
+	"internal/derive/golang",
 	"internal/vcs",
 	"internal/ratify",
 }

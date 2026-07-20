@@ -1,0 +1,9 @@
+module: helpers
+intent: >
+  Owns extraction and verification of Grip's embedded analyzer helpers. Must NOT know about gates, planes, or repository policy.
+architecture:
+  facade: [Directory, Identity]
+  dependencies:
+    allow: []
+    layer: foundation
+  cycles: forbid

@@ -109,6 +109,36 @@ func TestValidateReportRejectsUnknownConfidenceAndMalformedEvidence(t *testing.T
 	}
 }
 
+func TestPackageOnlyImportCreatesEdgeWithoutFacadeReachability(t *testing.T) {
+	rep := &AnalyzerReport{
+		Tool:        AnalyzerInfo{Name: "go", Version: "1.26.2"},
+		SurfaceTool: AnalyzerInfo{Name: "go/ast", Version: "1.26.2"},
+		Imports: []ImportRec{{
+			FromFile: "cmd/app/main.go", ToFile: "internal/plugin/plugin.go", Line: 3,
+			Kind: "import", PackageOnly: true,
+		}},
+	}
+	moduleOf := func(file string) string {
+		if has(file, "cmd/app/") {
+			return "cmd/app"
+		}
+		if has(file, "internal/plugin/") {
+			return "internal/plugin"
+		}
+		return ""
+	}
+	g, err := Normalize("go", rep, []string{"cmd/app", "internal/plugin"}, moduleOf, func(string) []string { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Edges) != 1 {
+		t.Fatalf("edges = %#v", g.Edges)
+	}
+	if got := g.Module("internal/plugin").ReachableFromOutside; len(got) != 0 {
+		t.Fatalf("package-only import widened facade: %v", got)
+	}
+}
+
 func has(s, sub string) bool {
 	return len(s) >= len(sub) && indexOf(s, sub) >= 0
 }

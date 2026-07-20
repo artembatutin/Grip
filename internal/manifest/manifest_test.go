@@ -105,3 +105,35 @@ func TestUnknownTopLevelKeyPreserved(t *testing.T) {
 		t.Fatal("future plane section should be retrievable")
 	}
 }
+
+func TestGoCandidatesArePackagesAndIgnoreTestOnlyDirectories(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "internal/alpha/alpha.go", "package alpha\n")
+	write(t, root, "internal/beta/beta.go", "package beta\n")
+	write(t, root, "internal/testonly/helper_test.go", "package testonly\n")
+	roots := []LanguageRoots{{Language: "go", Roots: []string{"."}, Exts: []string{".go"}}}
+	candidates, err := Candidates(root, roots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := candidates.Refs()
+	if len(refs) != 2 || refs[0].ID != "internal/alpha" || refs[1].ID != "internal/beta" {
+		t.Fatalf("Go candidates = %#v", refs)
+	}
+}
+
+func TestDiscoveryIgnoresManifestWithoutLanguageSource(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "internal/go-package/grip.yaml", "module: go-package\n")
+	write(t, root, "internal/go-package/main.go", "package gopackage\n")
+	write(t, root, "fixtures/typescript/grip.yaml", "module: typescript-fixture\n")
+	write(t, root, "fixtures/typescript/index.ts", "export const x = 1\n")
+
+	disc, err := Discover(root, []LanguageRoots{{Language: "go", Roots: []string{"."}, Exts: []string{".go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := disc.GovernedIDs(); len(got) != 1 || got[0] != "internal/go-package" {
+		t.Fatalf("governed = %v, foreign manifest became a Go module", got)
+	}
+}

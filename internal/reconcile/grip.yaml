@@ -1,0 +1,9 @@
+module: reconcile
+intent: >
+  Owns generic intent parsing and plane reconciliation orchestration. Must NOT contain concrete plane rules or repository I/O.
+architecture:
+  facade: [IntentError, Module, Result, RunPlane]
+  dependencies:
+    allow: [internal/plane]
+    layer: engine
+  cycles: forbid

@@ -1,0 +1,9 @@
+module: vcs
+intent: >
+  Owns read-only version-control facts required by the engine and planes. Must NOT make gate or policy decisions.
+architecture:
+  facade: [ChangedFiles, HeadCommit]
+  dependencies:
+    allow: []
+    layer: foundation
+  cycles: forbid

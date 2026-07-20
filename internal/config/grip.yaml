@@ -1,0 +1,9 @@
+module: config
+intent: >
+  Owns strict repository configuration loading and validation. Must NOT execute analyzers or decide gate outcomes.
+architecture:
+  facade: [Config, Filename, Load]
+  dependencies:
+    allow: [internal/manifest, internal/plane]
+    layer: engine
+  cycles: forbid

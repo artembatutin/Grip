@@ -1,0 +1,9 @@
+module: ratify
+intent: >
+  Owns deterministic draft manifests and starter configuration generation. Must NOT silently accept or write design intent.
+architecture:
+  facade: [DraftManifests, File, StarterConfig]
+  dependencies:
+    allow: [internal/ir]
+    layer: engine
+  cycles: forbid

@@ -1,0 +1,9 @@
+module: gate
+intent: >
+  Owns the fail-closed derive, reconcile, and decision pipeline. Must NOT contain concrete plane implementations or presentation formatting.
+architecture:
+  facade: [ExitFailClosed, ExitUsage, FailClosed, Options, Outcome, Run]
+  dependencies:
+    allow: [internal/config, internal/ir, internal/manifest, internal/plane, internal/reconcile, internal/vcs]
+    layer: engine
+  cycles: forbid

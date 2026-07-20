@@ -1,0 +1,5 @@
+# Grip treats manifest changes as deliberate design decisions. Branch
+# protection should require this owner's approval for these paths.
+/.grip.yaml @artembatutin
+**/grip.yaml @artembatutin
+/.grip/** @artembatutin

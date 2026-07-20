@@ -83,7 +83,7 @@ func Human(v View) string {
 		}
 	}
 
-	if o.Ungoverned != nil && len(o.Ungoverned) > 0 {
+	if len(o.Ungoverned) > 0 {
 		fmt.Fprintf(&b, "\nungoverned modules (no grip.yaml): %s\n", strings.Join(o.Ungoverned, ", "))
 	}
 	return b.String()

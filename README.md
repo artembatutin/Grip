@@ -2,7 +2,7 @@
 
 **A deterministic control plane that keeps a human the architect while AI agents implement.**
 
-Grip lets you declare small **intent** at your module boundaries, **derives** the real structure from code, and **gates** any change that moves the system's shape without your consent. An agent physically cannot introduce an illegal dependency, widen a module's facade, create a dependency cycle, reach into another module's internals, or violate layer direction — in **PHP or TypeScript/JS** — without a red build. You review the *shape delta*, not the lines.
+Grip lets you declare small **intent** at your module boundaries, **derives** the real structure from code, and **gates** any change that moves the system's shape without your consent. An agent physically cannot introduce an illegal dependency, widen a module's facade, create a dependency cycle, reach into another module's internals, or violate layer direction — in **Go, PHP, or TypeScript/JS** — without a red build. You review the *shape delta*, not the lines.
 
 Grip is a single binary. Its first-party TypeScript and PHP helpers are embedded
 and extracted to a content-addressed user cache at runtime, so consumer
@@ -21,7 +21,7 @@ Declare (grip.yaml)  →  Derive (from code)  →  Reconcile (intent vs actual) 
 
 The engine owns Reconcile, Gate, and Diff/Report **generically**. Each *plane* supplies a manifest schema, a deriver, and a tiered rule set. Adding a language means adding a deriver; adding an axis of governance means adding a plane — **never** editing the engine. That seam is enforced by a test ([`internal/enginepurity`](internal/enginepurity)) that fails if the engine ever names a plane.
 
-Derivers **wrap existing analyzers** (dependency-cruiser + ts-morph for TS; deptrac + php-parser for PHP) and normalize their output into one language-neutral **Common Graph IR**. Grip owns the IR, the reconciler, and all graph reasoning (cycles via its own Tarjan, reachability, direction). The IR is canonically sorted and content-hashed: the same commit + tool versions hash byte-identically across machines (NFR-1).
+Derivers **wrap existing analyzers** (the Go tool + standard parser for Go; dependency-cruiser + ts-morph for TS; deptrac + php-parser for PHP) and normalize their output into one language-neutral **Common Graph IR**. Grip owns the IR, the reconciler, and all graph reasoning (cycles via its own Tarjan, reachability, direction). The IR is canonically sorted and content-hashed: the same commit + tool versions hash byte-identically across machines (NFR-1).
 
 ## Install / build
 
@@ -33,7 +33,7 @@ make check        # build + vet + gofmt + lint + test
 make acceptance   # deterministic fixture matrix
 ```
 
-Requires Go 1.26+ only to build from source. A real TypeScript/JavaScript gate
+Requires Go 1.26+ to build from source and to analyze Go repositories. A real TypeScript/JavaScript gate
 requires Node, `dependency-cruiser`, and `ts-morph`; PHP requires PHP, Deptrac,
 and `nikic/php-parser`. Grip validates the actual analyzer identity and version
 before it constructs an IR. Missing or incompatible tooling exits `2`.
@@ -52,6 +52,7 @@ version: 1
 planes:
   architecture: { enabled: true }
 languages:
+  go:         { roots: ["internal", "cmd"], tool: { name: go, minVersion: "1.26.0" } }
   typescript: { roots: ["src"], tool: { name: dependency-cruiser, minVersion: "16.0.0" } }
   php:         { roots: ["app"], tool: { name: deptrac, minVersion: "2.0.0" } }
 policy:
@@ -89,6 +90,12 @@ grip init --write             # write only absent draft files
 grip ratify                   # accept current derived state as the baseline
 grip version
 ```
+
+Grip governs itself with all four planes. Architecture covers all 22 production
+modules; `internal/toolversion` is the first fully verified black box, with a
+pinned Go example, ratified Go API, and real overlay-based mutation testing.
+Run `make proof` for the adversarial evidence matrix or `make dogfood` for the
+unified self-gate. See [self-hosting](docs/self-hosting.md) for details.
 
 **Exit codes:** `0` pass · `1` hard violation · `2` fail-closed (missing tool/manifest, reduced confidence) · `3` config/usage error.
 

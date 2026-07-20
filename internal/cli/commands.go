@@ -33,8 +33,8 @@ func (a *App) cmdVersion(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	fmt.Fprintf(a.Stdout, "grip %s\n", Version)
-	fmt.Fprintf(a.Stdout, "ir schema: %s\n", ir.Version)
+	_, _ = fmt.Fprintf(a.Stdout, "grip %s\n", Version)
+	_, _ = fmt.Fprintf(a.Stdout, "ir schema: %s\n", ir.Version)
 	fmt.Fprintf(a.Stdout, "helpers: %s\n", helpers.Identity())
 	// Analyzer versions are resolved per run and captured in the IR/report; the
 	// configured tools are shown when a repo config is reachable.
@@ -79,15 +79,15 @@ func (a *App) cmdGate(ctx context.Context, args []string) int {
 		return exitUsage
 	}
 	if *local && *ci {
-		fmt.Fprintln(a.Stderr, "grip gate: --local and --ci cannot be used together")
+		_, _ = fmt.Fprintln(a.Stderr, "grip gate: --local and --ci cannot be used together")
 		return exitUsage
 	}
 	if *asJSON && *asSARIF {
-		fmt.Fprintln(a.Stderr, "grip gate: --json and --sarif cannot be used together")
+		_, _ = fmt.Fprintln(a.Stderr, "grip gate: --json and --sarif cannot be used together")
 		return exitUsage
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(a.Stderr, "grip gate: unexpected positional arguments")
+		_, _ = fmt.Fprintln(a.Stderr, "grip gate: unexpected positional arguments")
 		return exitUsage
 	}
 	root, cfg, code := a.loadRepo()
@@ -157,7 +157,10 @@ func (a *App) cmdView(ctx context.Context, args []string) int {
 			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
 			return gate.ExitFailClosed
 		}
-		a.Stdout.Write(b)
+		if _, err := a.Stdout.Write(b); err != nil {
+			_, _ = fmt.Fprintf(a.Stderr, "grip: write viewer output: %v\n", err)
+			return gate.ExitFailClosed
+		}
 		return exitOK
 	}
 	htmlDoc := report.HTML(report.BuildDocument(view))
@@ -169,7 +172,10 @@ func (a *App) cmdView(ctx context.Context, args []string) int {
 		fmt.Fprintf(a.Stderr, "grip: wrote read-only viewer to %s\n", *outPath)
 		return exitOK
 	}
-	fmt.Fprint(a.Stdout, htmlDoc)
+	if _, err := fmt.Fprint(a.Stdout, htmlDoc); err != nil {
+		_, _ = fmt.Fprintf(a.Stderr, "grip: write viewer output: %v\n", err)
+		return gate.ExitFailClosed
+	}
 	return exitOK
 }
 
@@ -198,7 +204,10 @@ func (a *App) cmdDerive(ctx context.Context, args []string) int {
 		fmt.Fprintf(a.Stderr, "grip: %v\n", err)
 		return gate.ExitFailClosed
 	}
-	a.Stdout.Write(b)
+	if _, err := a.Stdout.Write(b); err != nil {
+		_, _ = fmt.Fprintf(a.Stderr, "grip: write derived IR: %v\n", err)
+		return gate.ExitFailClosed
+	}
 	return exitOK
 }
 
@@ -277,7 +286,10 @@ func (a *App) cmdDiff(ctx context.Context, args []string) int {
 		return exitOK
 	}
 	view := report.View{Outcome: out, Delta: d}
-	fmt.Fprint(a.Stdout, report.Human(view))
+	if _, err := fmt.Fprint(a.Stdout, report.Human(view)); err != nil {
+		_, _ = fmt.Fprintf(a.Stderr, "grip: write diff: %v\n", err)
+		return gate.ExitFailClosed
+	}
 	return exitOK
 }
 
@@ -306,7 +318,7 @@ func (a *App) cmdInit(ctx context.Context, args []string) int {
 		// prints it by default, and never overwrites an existing config on --write.
 		languageRoots = inferLanguageRoots(root)
 		if len(languageRoots) == 0 {
-			fmt.Fprintln(a.Stderr, "grip init: no supported TypeScript/JavaScript or PHP source files found")
+			fmt.Fprintln(a.Stderr, "grip init: no supported Go, TypeScript/JavaScript, or PHP source files found")
 			return gate.ExitUsage
 		}
 		byLanguage := map[string][]string{}
@@ -369,6 +381,8 @@ func defaultAnalyzer(language string) string {
 		return "dependency-cruiser"
 	case "php":
 		return "deptrac"
+	case "go":
+		return "go"
 	default:
 		return ""
 	}
@@ -380,7 +394,13 @@ func defaultAnalyzer(language string) string {
 func inferLanguageRoots(root string) []manifest.LanguageRoots {
 	typescript := hasSource(root, []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"})
 	php := hasSource(root, []string{".php"})
+	golang := hasSource(root, []string{".go"})
 	var out []manifest.LanguageRoots
+	if golang {
+		// A Go module's import paths are rooted at go.mod, so use the repository
+		// root even when most implementation lives under internal/.
+		out = append(out, manifest.LanguageRoots{Language: "go", Roots: []string{"."}, Exts: []string{".go"}})
+	}
 	if typescript {
 		r := "."
 		if hasSource(filepath.Join(root, "src"), []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}) {
@@ -691,16 +711,25 @@ func (a *App) render(v report.View, asJSON, asSARIF bool) int {
 			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
 			return gate.ExitFailClosed
 		}
-		a.Stdout.Write(b)
+		if _, err := a.Stdout.Write(b); err != nil {
+			_, _ = fmt.Fprintf(a.Stderr, "grip: write JSON report: %v\n", err)
+			return gate.ExitFailClosed
+		}
 	case asSARIF:
 		b, err := report.SARIF(v)
 		if err != nil {
 			fmt.Fprintf(a.Stderr, "grip: %v\n", err)
 			return gate.ExitFailClosed
 		}
-		a.Stdout.Write(b)
+		if _, err := a.Stdout.Write(b); err != nil {
+			_, _ = fmt.Fprintf(a.Stderr, "grip: write SARIF report: %v\n", err)
+			return gate.ExitFailClosed
+		}
 	default:
-		fmt.Fprint(a.Stdout, report.Human(v))
+		if _, err := fmt.Fprint(a.Stdout, report.Human(v)); err != nil {
+			_, _ = fmt.Fprintf(a.Stderr, "grip: write report: %v\n", err)
+			return gate.ExitFailClosed
+		}
 	}
 	return exitOK
 }
@@ -708,7 +737,7 @@ func (a *App) render(v report.View, asJSON, asSARIF bool) int {
 // currentSnapshot builds a diff.Input from the derived graph plus the declared
 // surfaces read from each governed module's manifest.
 func (a *App) currentSnapshot(root string, cfg *config.Config, g *ir.Graph) diff.Input {
-	in := diff.Input{Graph: g, Facades: map[string][]string{}, Allows: map[string][]string{}}
+	in := diff.Input{Graph: snapshotGraph(g), Facades: map[string][]string{}, Allows: map[string][]string{}}
 	disc, err := manifest.Discover(root, cfg.LanguageRoots())
 	if err != nil {
 		return in
@@ -725,6 +754,27 @@ func (a *App) currentSnapshot(root string, cfg *config.Config, g *ir.Graph) diff
 		}
 	}
 	return in
+}
+
+// snapshotGraph retains exactly the derived shape consumed by diff.Compute.
+// Analyzer evidence remains in gate reports and the canonical IR; repeating it
+// in a ratified baseline would make a small design artifact needlessly large.
+func snapshotGraph(g *ir.Graph) *ir.Graph {
+	if g == nil {
+		return nil
+	}
+	out := &ir.Graph{IRVersion: g.IRVersion, Commit: g.Commit}
+	for _, m := range g.Modules {
+		out.Modules = append(out.Modules, ir.Module{
+			ID: m.ID, Language: m.Language,
+			ReachableFromOutside: append([]string(nil), m.ReachableFromOutside...),
+		})
+	}
+	for _, e := range g.Edges {
+		out.Edges = append(out.Edges, ir.Edge{From: e.From, To: e.To, Kind: e.Kind})
+	}
+	out.Canonicalize()
+	return out
 }
 
 // declaredSurfaces reads each governed module's declared facade and allowed

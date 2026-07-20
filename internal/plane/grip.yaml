@@ -1,0 +1,32 @@
+module: plane-contract
+intent: >
+  Owns the extension contracts and neutral types shared by all policy planes. Must NOT name or implement any concrete plane.
+architecture:
+  facade:
+    - DeriveServices
+    - Derived
+    - Intent
+    - KindCannotVerify
+    - KindIntentionalChange
+    - KindStaleDeclaration
+    - KindViolation
+    - LanguageSpec
+    - Location
+    - ManifestSection
+    - ModuleRef
+    - NewRegistry
+    - Plane
+    - Registry
+    - RuleSpec
+    - Tier
+    - TierA
+    - TierB
+    - TierC
+    - ToolMissingError
+    - ToolRunner
+    - ToolSpec
+    - Violation
+  dependencies:
+    allow: [internal/ir]
+    layer: foundation
+  cycles: forbid

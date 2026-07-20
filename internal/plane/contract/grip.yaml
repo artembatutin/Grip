@@ -1,0 +1,9 @@
+module: contract-plane
+intent: >
+  Owns external contract derivation, baselines, and compatibility rules. Must NOT own generic gate or report behavior.
+architecture:
+  facade: [BaselinesFor, Intent, New, PlaneID]
+  dependencies:
+    allow: [internal/ir, internal/plane]
+    layer: adapter
+  cycles: forbid

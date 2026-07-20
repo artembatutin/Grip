@@ -1,0 +1,22 @@
+module: ir
+intent: >
+  Owns the canonical language-neutral graph schema, ordering, merging, and hashing. Must NOT know languages, planes, or repository I/O.
+architecture:
+  facade:
+    - Analyzer
+    - Confidence
+    - Edge
+    - Evidence
+    - Export
+    - Graph
+    - Level
+    - LevelFull
+    - LevelNone
+    - LevelReduced
+    - Merge
+    - Module
+    - Version
+  dependencies:
+    allow: []
+    layer: foundation
+  cycles: forbid

@@ -21,6 +21,7 @@ import (
 const (
 	toolTypeScript = "behavior-typescript"
 	toolPHP        = "behavior-php"
+	toolGo         = "behavior-go"
 	// baselineTool yields the boundary snapshots as of the git baseline (HEAD /
 	// base branch), used ONLY to render a re-pin as an intentional change. Its
 	// absence is benign (nil → no intentional rendering), NOT a fail-closed block:
@@ -177,6 +178,16 @@ func (p *Plane) capture(ctx context.Context, mods []plane.ModuleRef, svc plane.D
 
 	out := map[string]map[string]capturedBoundary{}
 	for _, lang := range langs {
+		if lang == "go" {
+			captured, err := captureGo(ctx, byLang[lang], svc)
+			if err != nil {
+				return nil, err
+			}
+			for moduleID, bounds := range captured {
+				out[moduleID] = bounds
+			}
+			continue
+		}
 		name, ok := toolName(lang)
 		if !ok {
 			return nil, fmt.Errorf("behavior: no capture helper for language %q (has %d governed modules)", lang, len(byLang[lang]))
@@ -279,6 +290,8 @@ func toolName(lang string) (string, bool) {
 		return toolTypeScript, true
 	case "php":
 		return toolPHP, true
+	case "go":
+		return toolGo, true
 	default:
 		return "", false
 	}

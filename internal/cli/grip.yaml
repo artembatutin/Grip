@@ -1,0 +1,26 @@
+module: cli
+intent: >
+  Owns command parsing, runtime composition, and user-facing command workflows. Must NOT implement graph rules or plane policy.
+architecture:
+  facade: [Main]
+  dependencies:
+    allow:
+      - ci/helpers
+      - internal/config
+      - internal/derive
+      - internal/derive/golang
+      - internal/derive/php
+      - internal/derive/typescript
+      - internal/diff
+      - internal/gate
+      - internal/ir
+      - internal/manifest
+      - internal/plane
+      - internal/plane/architecture
+      - internal/plane/behavior
+      - internal/plane/contract
+      - internal/plane/testrigor
+      - internal/ratify
+      - internal/report
+    layer: delivery
+  cycles: forbid

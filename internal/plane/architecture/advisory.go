@@ -231,7 +231,7 @@ func normalizeAdvisory(rep *AdvisoryReport, moduleOf func(string) string) Signal
 		if r.Module == "" {
 			continue
 		}
-		s.MiddleMen = append(s.MiddleMen, MiddleManSignal{Module: r.Module, Forwards: r.Forwards, Methods: r.Methods})
+		s.MiddleMen = append(s.MiddleMen, MiddleManSignal(r))
 	}
 
 	for _, r := range rep.MessageChains {

@@ -1,0 +1,9 @@
+module: grip-command
+intent: >
+  Owns the executable process entrypoint. Must NOT contain command behavior or engine policy.
+architecture:
+  facade: []
+  dependencies:
+    allow: [internal/cli]
+    layer: delivery
+  cycles: forbid

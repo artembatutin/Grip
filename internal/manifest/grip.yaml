@@ -1,0 +1,9 @@
+module: manifest
+intent: >
+  Owns module-manifest loading, source discovery, and onboarding candidates. Must NOT interpret plane-specific intent or make policy decisions.
+architecture:
+  facade: [Candidates, Discover, Discovery, LanguageRoots]
+  dependencies:
+    allow: [internal/plane]
+    layer: engine
+  cycles: forbid

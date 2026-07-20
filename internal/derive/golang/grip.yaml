@@ -1,0 +1,9 @@
+module: go-deriver
+intent: >
+  Owns Go package and exported-symbol derivation into the common analyzer report. Must NOT implement reconciliation or gate policy.
+architecture:
+  facade: [New]
+  dependencies:
+    allow: [internal/derive, internal/ir, internal/plane]
+    layer: adapter
+  cycles: forbid
